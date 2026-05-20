@@ -1,4 +1,3 @@
-@"
 # PayFlow
 
 Distributed payment processing platform built in Go.
@@ -15,4 +14,3 @@ See [ARCHITECTURE.md](./ARCHITECTURE.md) for full system design.
 
 ## Status
 🚧 In active development
-"@ | Out-File -FilePath "README.md" -Encoding utf8
