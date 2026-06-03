@@ -1,0 +1,21 @@
+# Binaries
+bin/
+*.exe
+
+# Environment
+.env
+
+# IDE
+.idea/
+.vscode/
+
+# Go test cache
+*.test
+*.out
+
+# Node
+frontend/node_modules/
+frontend/dist/
+
+# OS
+.DS_Store
