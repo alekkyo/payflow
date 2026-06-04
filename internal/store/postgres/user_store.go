@@ -40,6 +40,26 @@ func (s *UserStore) Create(ctx context.Context, email, passwordHash string) (*us
 	return u, nil
 }
 
+// GetByID fetches a user by primary key.
+func (s *UserStore) GetByID(ctx context.Context, id uuid.UUID) (*user.User, error) {
+	const q = `
+		SELECT id, email, password_hash, role, created_at
+		FROM users
+		WHERE id = $1`
+
+	u := &user.User{}
+	err := s.pool.QueryRow(ctx, q, id).Scan(
+		&u.ID, &u.Email, &u.PasswordHash, &u.Role, &u.CreatedAt,
+	)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, fmt.Errorf("user_store.GetByID %s: %w", id, user.ErrNotFound)
+	}
+	if err != nil {
+		return nil, fmt.Errorf("user_store.GetByID: %w", err)
+	}
+	return u, nil
+}
+
 // GetByEmail fetches a user by email address.
 func (s *UserStore) GetByEmail(ctx context.Context, email string) (*user.User, error) {
 	const q = `

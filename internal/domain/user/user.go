@@ -26,6 +26,12 @@ type Session struct {
 	CreatedAt time.Time
 }
 
+// Claims holds the authenticated user's identity and is stored in request context.
+type Claims struct {
+	ID   uuid.UUID
+	Role string
+}
+
 // Store is the persistence interface for users and sessions.
 // Implementations live in internal/store/postgres.
 type Store interface {
@@ -34,6 +40,9 @@ type Store interface {
 
 	// GetByEmail returns a user by email, or an error wrapping ErrNotFound.
 	GetByEmail(ctx context.Context, email string) (*User, error)
+
+	// GetByID returns a user by primary key, or an error wrapping ErrNotFound.
+	GetByID(ctx context.Context, id uuid.UUID) (*User, error)
 
 	// CreateSession persists a new session token hash for the given user.
 	CreateSession(ctx context.Context, userID uuid.UUID, tokenHash string, expiresAt time.Time) (*Session, error)

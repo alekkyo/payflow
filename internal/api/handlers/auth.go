@@ -16,6 +16,7 @@ import (
 	"github.com/google/uuid"
 	"golang.org/x/crypto/bcrypt"
 
+	"github.com/alexkua/payflow/internal/api/middleware"
 	"github.com/alexkua/payflow/internal/domain/user"
 )
 
@@ -133,7 +134,7 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 
 // Logout handles POST /auth/logout. Requires a valid Bearer token.
 func (h *AuthHandler) Logout(w http.ResponseWriter, r *http.Request) {
-	token := bearerToken(r)
+	token := middleware.BearerToken(r)
 	if token == "" {
 		writeError(w, http.StatusUnauthorized, "missing authorization token")
 		return
@@ -209,10 +210,3 @@ func validateCredentials(email, password string) error {
 	return nil
 }
 
-func bearerToken(r *http.Request) string {
-	h := r.Header.Get("Authorization")
-	if !strings.HasPrefix(h, "Bearer ") {
-		return ""
-	}
-	return strings.TrimPrefix(h, "Bearer ")
-}

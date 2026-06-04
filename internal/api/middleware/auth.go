@@ -14,14 +14,14 @@ import (
 
 type contextKey string
 
-const contextKeyUser contextKey = "user"
+const contextKeyClaims contextKey = "claims"
 
 // Auth returns middleware that requires a valid Bearer session token.
-// It hashes the token and looks it up in the user store.
+// On success it stores a *user.Claims (ID + role) in the request context.
 func Auth(store user.Store) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			token := bearerToken(r)
+			token := BearerToken(r)
 			if token == "" {
 				http.Error(w, `{"error":"missing authorization token"}`, http.StatusUnauthorized)
 				return
@@ -45,20 +45,27 @@ func Auth(store user.Store) func(http.Handler) http.Handler {
 				return
 			}
 
-			// Attach the session's user ID to the context for downstream handlers.
-			ctx := context.WithValue(r.Context(), contextKeyUser, sess.UserID)
+			u, err := store.GetByID(r.Context(), sess.UserID)
+			if err != nil {
+				http.Error(w, `{"error":"internal server error"}`, http.StatusInternalServerError)
+				return
+			}
+
+			claims := &user.Claims{ID: u.ID, Role: u.Role}
+			ctx := context.WithValue(r.Context(), contextKeyClaims, claims)
 			next.ServeHTTP(w, r.WithContext(ctx))
 		})
 	}
 }
 
-// UserIDFromContext extracts the authenticated user's UUID from the context.
-func UserIDFromContext(ctx context.Context) (interface{}, bool) {
-	v := ctx.Value(contextKeyUser)
-	return v, v != nil
+// ClaimsFromContext extracts the authenticated user's claims from the context.
+func ClaimsFromContext(ctx context.Context) (*user.Claims, bool) {
+	c, ok := ctx.Value(contextKeyClaims).(*user.Claims)
+	return c, ok
 }
 
-func bearerToken(r *http.Request) string {
+// BearerToken extracts the token from an "Authorization: Bearer <token>" header.
+func BearerToken(r *http.Request) string {
 	h := r.Header.Get("Authorization")
 	if !strings.HasPrefix(h, "Bearer ") {
 		return ""

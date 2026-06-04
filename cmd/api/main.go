@@ -42,10 +42,12 @@ func main() {
 	}
 	defer rdb.Close()
 
-	userStore := pgstore.NewUserStore(pool)
-	srv := api.NewServer(cfg, pool, rdb, userStore, logger)
+	userStore      := pgstore.NewUserStore(pool)
+	productStore   := pgstore.NewProductStore(pool)
+	inventoryStore := pgstore.NewInventoryStore(pool)
 
-	// Start server in a goroutine so we can listen for shutdown signals.
+	srv := api.NewServer(cfg, pool, rdb, userStore, productStore, inventoryStore, logger)
+
 	serverErr := make(chan error, 1)
 	go func() {
 		serverErr <- srv.Start()

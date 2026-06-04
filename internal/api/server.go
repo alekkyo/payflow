@@ -16,7 +16,9 @@ import (
 	"github.com/alexkua/payflow/internal/api/handlers"
 	"github.com/alexkua/payflow/internal/api/middleware"
 	"github.com/alexkua/payflow/internal/config"
+	"github.com/alexkua/payflow/internal/domain/product"
 	"github.com/alexkua/payflow/internal/domain/user"
+	redisstore "github.com/alexkua/payflow/internal/store/redis"
 )
 
 // Server wraps the HTTP server and its dependencies.
@@ -26,7 +28,15 @@ type Server struct {
 }
 
 // NewServer constructs and configures the HTTP server with all routes.
-func NewServer(cfg *config.Config, pool *pgxpool.Pool, rdb *redis.Client, userStore user.Store, logger *slog.Logger) *Server {
+func NewServer(
+	cfg *config.Config,
+	pool *pgxpool.Pool,
+	rdb *redis.Client,
+	userStore user.Store,
+	productStore product.Store,
+	inventoryStore product.InventoryStore,
+	logger *slog.Logger,
+) *Server {
 	r := chi.NewRouter()
 
 	// Global middleware
@@ -34,7 +44,9 @@ func NewServer(cfg *config.Config, pool *pgxpool.Pool, rdb *redis.Client, userSt
 	r.Use(chimiddleware.Recoverer)
 	r.Use(middleware.Logger(logger))
 
+	productCache := redisstore.NewProductCache(rdb)
 	authHandler := handlers.NewAuthHandler(userStore, cfg.SessionDuration, logger)
+	productHandler := handlers.NewProductHandler(productStore, inventoryStore, productCache, logger)
 
 	// Observability
 	r.Get("/health", handlers.Health)
@@ -48,6 +60,20 @@ func NewServer(cfg *config.Config, pool *pgxpool.Pool, rdb *redis.Client, userSt
 	r.Group(func(r chi.Router) {
 		r.Use(middleware.Auth(userStore))
 		r.Post("/auth/logout", authHandler.Logout)
+	})
+
+	// Products (public — reads)
+	r.Get("/products", productHandler.List)
+	r.Get("/products/{id}", productHandler.GetByID)
+
+	// Products (admin — writes)
+	r.Group(func(r chi.Router) {
+		r.Use(middleware.Auth(userStore))
+		r.Use(middleware.RequireAdmin)
+		r.Post("/products", productHandler.Create)
+		r.Put("/products/{id}", productHandler.Update)
+		r.Delete("/products/{id}", productHandler.Deactivate)
+		r.Put("/products/{id}/inventory", productHandler.SetInventory)
 	})
 
 	return &Server{
