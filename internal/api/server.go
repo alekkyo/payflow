@@ -16,8 +16,10 @@ import (
 	"github.com/alexkua/payflow/internal/api/handlers"
 	"github.com/alexkua/payflow/internal/api/middleware"
 	"github.com/alexkua/payflow/internal/config"
+	"github.com/alexkua/payflow/internal/domain/order"
 	"github.com/alexkua/payflow/internal/domain/product"
 	"github.com/alexkua/payflow/internal/domain/user"
+	"github.com/alexkua/payflow/internal/queue"
 	redisstore "github.com/alexkua/payflow/internal/store/redis"
 )
 
@@ -35,6 +37,7 @@ func NewServer(
 	userStore user.Store,
 	productStore product.Store,
 	inventoryStore product.InventoryStore,
+	orderStore order.Store,
 	logger *slog.Logger,
 ) *Server {
 	r := chi.NewRouter()
@@ -45,8 +48,10 @@ func NewServer(
 	r.Use(middleware.Logger(logger))
 
 	productCache := redisstore.NewProductCache(rdb)
+	producer := queue.NewProducer(rdb)
 	authHandler := handlers.NewAuthHandler(userStore, cfg.SessionDuration, logger)
 	productHandler := handlers.NewProductHandler(productStore, inventoryStore, productCache, logger)
+	orderHandler := handlers.NewOrderHandler(orderStore, productStore, inventoryStore, producer, rdb, logger)
 
 	// Observability
 	r.Get("/health", handlers.Health)
@@ -76,12 +81,22 @@ func NewServer(
 		r.Put("/products/{id}/inventory", productHandler.SetInventory)
 	})
 
+	// Orders (authenticated)
+	r.Group(func(r chi.Router) {
+		r.Use(middleware.Auth(userStore))
+		r.Post("/orders", orderHandler.Create)
+		r.Get("/orders", orderHandler.List)
+		r.Get("/orders/{id}", orderHandler.GetByID)
+		r.Post("/orders/{id}/cancel", orderHandler.Cancel)
+		r.Get("/orders/{id}/events/stream", orderHandler.StreamEvents)
+	})
+
 	return &Server{
 		httpServer: &http.Server{
 			Addr:         ":" + cfg.Port,
 			Handler:      r,
 			ReadTimeout:  10 * time.Second,
-			WriteTimeout: 30 * time.Second,
+			WriteTimeout: 0, // disabled — SSE connections are long-lived
 			IdleTimeout:  120 * time.Second,
 		},
 		logger: logger,

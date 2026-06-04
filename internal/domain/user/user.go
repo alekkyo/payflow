@@ -10,20 +10,20 @@ import (
 
 // User represents an authenticated account in the system.
 type User struct {
-	ID           uuid.UUID
-	Email        string
-	PasswordHash string
-	Role         string
-	CreatedAt    time.Time
+	ID           uuid.UUID `json:"id"`
+	Email        string    `json:"email"`
+	PasswordHash string    `json:"-"` // never serialise the password hash
+	Role         string    `json:"role"`
+	CreatedAt    time.Time `json:"created_at"`
 }
 
 // Session represents an active login session backed by an opaque token.
 type Session struct {
-	ID        uuid.UUID
-	UserID    uuid.UUID
-	TokenHash string
-	ExpiresAt time.Time
-	CreatedAt time.Time
+	ID        uuid.UUID `json:"id"`
+	UserID    uuid.UUID `json:"user_id"`
+	TokenHash string    `json:"-"` // never serialise the token hash
+	ExpiresAt time.Time `json:"expires_at"`
+	CreatedAt time.Time `json:"created_at"`
 }
 
 // Claims holds the authenticated user's identity and is stored in request context.

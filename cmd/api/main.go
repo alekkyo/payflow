@@ -45,8 +45,9 @@ func main() {
 	userStore      := pgstore.NewUserStore(pool)
 	productStore   := pgstore.NewProductStore(pool)
 	inventoryStore := pgstore.NewInventoryStore(pool)
+	orderStore     := pgstore.NewOrderStore(pool)
 
-	srv := api.NewServer(cfg, pool, rdb, userStore, productStore, inventoryStore, logger)
+	srv := api.NewServer(cfg, pool, rdb, userStore, productStore, inventoryStore, orderStore, logger)
 
 	serverErr := make(chan error, 1)
 	go func() {

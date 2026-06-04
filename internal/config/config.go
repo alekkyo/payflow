@@ -9,12 +9,13 @@ import (
 
 // Config holds all runtime configuration for the application.
 type Config struct {
-	DatabaseURL     string
-	RedisURL        string
-	Port            string
-	Env             string
-	SessionDuration time.Duration
-	StripeAPIKey    string
+	DatabaseURL         string
+	RedisURL            string
+	Port                string
+	Env                 string
+	SessionDuration     time.Duration
+	WorkerDelay         time.Duration // artificial delay before processing; useful in dev to observe state transitions via SSE
+	StripeAPIKey        string
 	StripeWebhookSecret string
 }
 
@@ -41,12 +42,15 @@ func Load() (*Config, error) {
 		env = "development"
 	}
 
+	workerDelay, _ := time.ParseDuration(os.Getenv("WORKER_DELAY"))
+
 	return &Config{
 		DatabaseURL:         databaseURL,
 		RedisURL:            redisURL,
 		Port:                port,
 		Env:                 env,
 		SessionDuration:     24 * time.Hour,
+		WorkerDelay:         workerDelay,
 		StripeAPIKey:        os.Getenv("STRIPE_API_KEY"),
 		StripeWebhookSecret: os.Getenv("STRIPE_WEBHOOK_SECRET"),
 	}, nil

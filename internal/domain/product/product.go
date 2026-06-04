@@ -12,23 +12,23 @@ import (
 
 // Product represents a sellable item in the catalog.
 type Product struct {
-	ID          uuid.UUID
-	Name        string
-	Description string
-	PriceCents  int
-	Currency    string
-	Active      bool
-	CreatedAt   time.Time
-	UpdatedAt   time.Time
+	ID          uuid.UUID `json:"id"`
+	Name        string    `json:"name"`
+	Description string    `json:"description"`
+	PriceCents  int       `json:"price_cents"`
+	Currency    string    `json:"currency"`
+	Active      bool      `json:"active"`
+	CreatedAt   time.Time `json:"created_at"`
+	UpdatedAt   time.Time `json:"updated_at"`
 }
 
 // Inventory tracks stock levels for a product.
 type Inventory struct {
-	ProductID uuid.UUID
-	Quantity  int
-	Reserved  int
-	Version   int
-	UpdatedAt time.Time
+	ProductID uuid.UUID `json:"product_id"`
+	Quantity  int       `json:"quantity"`
+	Reserved  int       `json:"reserved"`
+	Version   int       `json:"version"`
+	UpdatedAt time.Time `json:"updated_at"`
 }
 
 // Available returns the number of units that can still be reserved.
