@@ -26,15 +26,16 @@ const (
 // InventoryWorker reads from stream:orders.created, reserves stock, and
 // advances the saga to stream:payments.ready or stream:orders.cancelled.
 type InventoryWorker struct {
-	consumer   *queue.Consumer
-	producer   *queue.Producer
-	orderStore order.Store
-	invSvc     *product.InventoryService
-	locker     *redisstore.Locker
-	rdb        *redis.Client
-	logger     *slog.Logger
-	workerID   string
-	delay      time.Duration
+	consumer             *queue.Consumer
+	compensationConsumer *queue.Consumer
+	producer             *queue.Producer
+	orderStore           order.Store
+	invSvc               *product.InventoryService
+	locker               *redisstore.Locker
+	rdb                  *redis.Client
+	logger               *slog.Logger
+	workerID             string
+	delay                time.Duration
 }
 
 // NewInventoryWorker creates an InventoryWorker and registers its consumer group.
@@ -59,22 +60,84 @@ func NewInventoryWorker(
 		return nil, fmt.Errorf("inventory_worker.New: %w", err)
 	}
 
+	// A second consumer on payments.failed handles saga compensation —
+	// releasing reserved inventory when a payment charge fails.
+	compensationConsumer, err := queue.NewConsumer(
+		ctx, rdb,
+		queue.StreamPaymentsFailed,
+		inventoryWorkerGroup+"-compensation",
+		workerID,
+		logger,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("inventory_worker.New compensation: %w", err)
+	}
+
 	return &InventoryWorker{
-		consumer:   consumer,
-		producer:   queue.NewProducer(rdb),
-		orderStore: orderStore,
-		invSvc:     invSvc,
-		locker:     locker,
-		rdb:        rdb,
-		logger:     logger,
-		workerID:   workerID,
-		delay:      delay,
+		consumer:             consumer,
+		compensationConsumer: compensationConsumer,
+		producer:             queue.NewProducer(rdb),
+		orderStore:           orderStore,
+		invSvc:               invSvc,
+		locker:               locker,
+		rdb:                  rdb,
+		logger:               logger,
+		workerID:             workerID,
+		delay:                delay,
 	}, nil
 }
 
 // Run starts the worker loop. Blocks until ctx is cancelled.
 func (w *InventoryWorker) Run(ctx context.Context) {
 	w.consumer.Run(ctx, w.handle)
+}
+
+// RunCompensation starts a second loop that reads stream:payments.failed and
+// releases reserved inventory when a payment charge fails.
+func (w *InventoryWorker) RunCompensation(ctx context.Context) {
+	w.compensationConsumer.Run(ctx, w.handleCompensation)
+}
+
+// handleCompensation releases inventory reserved for an order whose payment failed.
+func (w *InventoryWorker) handleCompensation(ctx context.Context, msg redis.XMessage) error {
+	orderID, err := uuidFromMessage(msg, "order_id")
+	if err != nil {
+		return fmt.Errorf("inventory_worker.handleCompensation parse order_id: %w", err)
+	}
+
+	w.logger.Info("inventory_worker compensation releasing stock", "order_id", orderID)
+
+	o, err := w.orderStore.GetByID(ctx, orderID)
+	if err != nil {
+		return fmt.Errorf("inventory_worker.handleCompensation get order %s: %w", orderID, err)
+	}
+
+	// Release all reserved inventory for the order.
+	for _, item := range o.Items {
+		if err := w.invSvc.Release(ctx, item.ProductID, item.Quantity); err != nil {
+			w.logger.Error("inventory_worker.handleCompensation release",
+				"product_id", item.ProductID,
+				"error", err,
+			)
+		}
+	}
+
+	// Cancel the order and record the reason.
+	payload, _ := json.Marshal(map[string]string{"reason": "payment failed"})
+	if err := w.orderStore.UpdateStatus(ctx,
+		orderID,
+		order.StatusCancelled,
+		order.EventPaymentFailed,
+		w.workerID,
+		payload,
+	); err != nil {
+		w.logger.Error("inventory_worker.handleCompensation cancel order", "order_id", orderID, "error", err)
+	}
+
+	w.setStatusCache(ctx, orderID, order.StatusCancelled)
+
+	w.logger.Info("inventory_worker compensation complete", "order_id", orderID)
+	return nil
 }
 
 // handle processes one order-created event.

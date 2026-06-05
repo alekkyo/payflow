@@ -13,6 +13,7 @@ import (
 	"github.com/alexkua/payflow/internal/observability"
 	pgstore "github.com/alexkua/payflow/internal/store/postgres"
 	rdstore "github.com/alexkua/payflow/internal/store/redis"
+	stripeclient "github.com/alexkua/payflow/internal/stripe"
 )
 
 func main() {
@@ -46,8 +47,10 @@ func main() {
 	productStore   := pgstore.NewProductStore(pool)
 	inventoryStore := pgstore.NewInventoryStore(pool)
 	orderStore     := pgstore.NewOrderStore(pool)
+	paymentStore   := pgstore.NewPaymentStore(pool)
+	stripeProvider := stripeclient.NewClient(cfg.StripeAPIKey, cfg.StripeWebhookSecret)
 
-	srv := api.NewServer(cfg, pool, rdb, userStore, productStore, inventoryStore, orderStore, logger)
+	srv := api.NewServer(cfg, pool, rdb, userStore, productStore, inventoryStore, orderStore, paymentStore, stripeProvider, logger)
 
 	serverErr := make(chan error, 1)
 	go func() {

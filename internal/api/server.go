@@ -17,6 +17,7 @@ import (
 	"github.com/alexkua/payflow/internal/api/middleware"
 	"github.com/alexkua/payflow/internal/config"
 	"github.com/alexkua/payflow/internal/domain/order"
+	"github.com/alexkua/payflow/internal/domain/payment"
 	"github.com/alexkua/payflow/internal/domain/product"
 	"github.com/alexkua/payflow/internal/domain/user"
 	"github.com/alexkua/payflow/internal/queue"
@@ -38,6 +39,8 @@ func NewServer(
 	productStore product.Store,
 	inventoryStore product.InventoryStore,
 	orderStore order.Store,
+	paymentStore payment.Store,
+	provider payment.PaymentProvider,
 	logger *slog.Logger,
 ) *Server {
 	r := chi.NewRouter()
@@ -52,6 +55,8 @@ func NewServer(
 	authHandler := handlers.NewAuthHandler(userStore, cfg.SessionDuration, logger)
 	productHandler := handlers.NewProductHandler(productStore, inventoryStore, productCache, logger)
 	orderHandler := handlers.NewOrderHandler(orderStore, productStore, inventoryStore, producer, rdb, logger)
+	paymentHandler := handlers.NewPaymentHandler(paymentStore, orderStore, producer, logger)
+	webhookHandler := handlers.NewWebhookHandler(provider, paymentStore, producer, logger)
 
 	// Observability
 	r.Get("/health", handlers.Health)
@@ -89,7 +94,18 @@ func NewServer(
 		r.Get("/orders/{id}", orderHandler.GetByID)
 		r.Post("/orders/{id}/cancel", orderHandler.Cancel)
 		r.Get("/orders/{id}/events/stream", orderHandler.StreamEvents)
+		r.Post("/orders/{id}/refunds", paymentHandler.CreateRefund)
+		r.Get("/orders/{id}/refunds", paymentHandler.ListRefunds)
 	})
+
+	// Payments (authenticated)
+	r.Group(func(r chi.Router) {
+		r.Use(middleware.Auth(userStore))
+		r.Get("/payments/{id}", paymentHandler.GetByID)
+	})
+
+	// Webhooks (public — Stripe signs payloads, we validate the signature instead of using auth)
+	r.Post("/webhooks/stripe", webhookHandler.Handle)
 
 	return &Server{
 		httpServer: &http.Server{
