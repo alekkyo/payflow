@@ -43,6 +43,10 @@ func (m *mockInventoryStore) Release(_ context.Context, _ uuid.UUID, _ int, _ in
 	return m.releaseOK, nil
 }
 
+func (m *mockInventoryStore) ListAvailable(_ context.Context) (map[uuid.UUID]int, error) {
+	return nil, m.err
+}
+
 func TestInventory_Available(t *testing.T) {
 	tests := []struct {
 		name     string
