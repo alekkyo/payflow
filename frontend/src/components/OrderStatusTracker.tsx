@@ -1,3 +1,4 @@
+import { useEffect, useRef } from 'react'
 import { useOrderStream, ORDER_STATUS_LABELS, TERMINAL_STATUSES } from '../hooks/useOrderStream'
 
 const SAGA_STEPS = [
@@ -14,13 +15,26 @@ const FAILURE_STATUSES = new Set(['payment_failed', 'cancelled'])
 type Props = {
   orderId: string
   initialStatus: string
+  // Called whenever the live status changes (not on the initial mount).
+  // Use this to invalidate stale query data in the parent.
+  onStatusChange?: (status: string) => void
 }
 
-export function OrderStatusTracker({ orderId, initialStatus }: Props) {
+export function OrderStatusTracker({ orderId, initialStatus, onStatusChange }: Props) {
   const status = useOrderStream(orderId, initialStatus)
   const label = ORDER_STATUS_LABELS[status] ?? status
   const isFailed = FAILURE_STATUSES.has(status)
   const isTerminal = TERMINAL_STATUSES.has(status)
+
+  // Fire onStatusChange only when status transitions, not on the initial render.
+  // useRef tracks the previous value without causing an extra render.
+  const prevRef = useRef(initialStatus)
+  useEffect(() => {
+    if (status !== prevRef.current) {
+      prevRef.current = status
+      onStatusChange?.(status)
+    }
+  }, [status, onStatusChange])
 
   return (
     <div className="bg-white border rounded-lg p-6">

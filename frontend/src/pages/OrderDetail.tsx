@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { orders, payments, ApiError } from '../api/client'
@@ -27,6 +27,10 @@ export function OrderDetail() {
   const queryClient = useQueryClient()
   const [cancelError, setCancelError] = useState('')
 
+  // liveStatus tracks the real-time status from SSE.
+  // Initialised from the query result; updated by onStatusChange below.
+  const [liveStatus, setLiveStatus] = useState<string | null>(null)
+
   const {
     data: order,
     isLoading,
@@ -46,10 +50,20 @@ export function OrderDetail() {
     retry: false,
   })
 
+  // Called by OrderStatusTracker whenever the live SSE status changes.
+  // Updating liveStatus here instantly reflects the change in the cancel button
+  // and triggers a background refetch so the rest of the page (payment details,
+  // order status badge in the list) stay consistent.
+  const handleStatusChange = useCallback((newStatus: string) => {
+    setLiveStatus(newStatus)
+    queryClient.invalidateQueries({ queryKey: ['orders', id] })
+    queryClient.invalidateQueries({ queryKey: ['payment', id] })
+    queryClient.invalidateQueries({ queryKey: ['orders'] })
+  }, [id, queryClient])
+
   const cancelMutation = useMutation({
     mutationFn: () => orders.cancel(id!),
     onSuccess: () => {
-      // Invalidate both the list and this specific order so both pages reflect the new status.
       queryClient.invalidateQueries({ queryKey: ['orders'] })
       queryClient.invalidateQueries({ queryKey: ['orders', id] })
     },
@@ -74,6 +88,10 @@ export function OrderDetail() {
     )
   }
 
+  // Use the live SSE status for reactive UI (cancel button visibility).
+  // Fall back to the query value when SSE hasn't fired yet.
+  const currentStatus = liveStatus ?? order.status
+
   return (
     <div className="max-w-3xl mx-auto px-6 py-8 space-y-6">
       <div className="flex items-center gap-4">
@@ -88,8 +106,12 @@ export function OrderDetail() {
         </h1>
       </div>
 
-      {/* Live status tracker — subscribes to SSE and updates as the saga progresses */}
-      <OrderStatusTracker orderId={order.id} initialStatus={order.status} />
+      {/* Live status tracker — SSE updates bubble up via onStatusChange */}
+      <OrderStatusTracker
+        orderId={order.id}
+        initialStatus={order.status}
+        onStatusChange={handleStatusChange}
+      />
 
       {/* Order items */}
       <div className="bg-white border rounded-xl p-6">
@@ -98,9 +120,7 @@ export function OrderDetail() {
           {order.items?.map((item, idx) => (
             <div key={idx} className="py-3 flex items-center justify-between">
               <div>
-                <p className="font-medium text-gray-900">
-                  {item.product_name ?? `Product ${item.product_id.slice(0, 8)}`}
-                </p>
+                <p className="font-medium text-gray-900">{item.product_name}</p>
                 <p className="text-sm text-gray-500">Qty: {item.quantity}</p>
               </div>
               <span className="font-semibold text-gray-900">
@@ -116,7 +136,8 @@ export function OrderDetail() {
         <p className="text-xs text-gray-400 mt-2">Placed {formatDateTime(order.created_at)}</p>
       </div>
 
-      {/* Payment details — only shown once a payment record exists */}
+      {/* Payment details — appears once the webhook worker has processed the payment.
+          The payment query re-fetches automatically via handleStatusChange. */}
       {payment && (
         <div className="bg-white border rounded-xl p-6">
           <h2 className="font-semibold text-gray-800 mb-4">Payment</h2>
@@ -143,8 +164,10 @@ export function OrderDetail() {
         </div>
       )}
 
-      {/* Cancel — only available before payment starts processing */}
-      {CANCELLABLE_STATUSES.has(order.status) && (
+      {/* Cancel — only available before payment starts processing.
+          Uses currentStatus (SSE) so the button disappears the moment the saga
+          advances, not only after a manual refresh. */}
+      {CANCELLABLE_STATUSES.has(currentStatus) && (
         <div>
           {cancelError && (
             <p className="text-sm text-red-600 bg-red-50 px-3 py-2 rounded-lg mb-3">

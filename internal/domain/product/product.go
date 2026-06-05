@@ -85,6 +85,10 @@ type InventoryStore interface {
 	// Release decrements reserved by quantity using optimistic locking.
 	// Returns true if the update succeeded, false if the version was stale.
 	Release(ctx context.Context, productID uuid.UUID, quantity, expectedVersion int) (bool, error)
+
+	// ListAvailable returns a map of product_id → available quantity for all products.
+	// Used by the catalog to show low-stock warnings.
+	ListAvailable(ctx context.Context) (map[uuid.UUID]int, error)
 }
 
 // ErrNotFound is returned when a product or inventory record does not exist.

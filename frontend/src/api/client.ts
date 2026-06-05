@@ -76,6 +76,8 @@ export type InventoryLevel = {
 export const products = {
   list: () => request<{ products: Product[] }>('/products'),
   getById: (id: string) => request<Product>(`/products/${id}`),
+  // Returns available stock per product_id. No auth required — safe to poll.
+  inventory: () => request<{ inventory: Record<string, number> }>('/products/inventory'),
 }
 
 // ── Orders ───────────────────────────────────────────────────────────────────

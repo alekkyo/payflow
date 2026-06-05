@@ -217,8 +217,10 @@ func (s *OrderStore) Cancel(ctx context.Context, orderID uuid.UUID, createdBy st
 
 func (s *OrderStore) loadItems(ctx context.Context, o *order.Order) error {
 	const q = `
-		SELECT id, order_id, product_id, quantity, price_cents, created_at
-		FROM order_items WHERE order_id = $1`
+		SELECT oi.id, oi.order_id, oi.product_id, p.name, oi.quantity, oi.price_cents, oi.created_at
+		FROM order_items oi
+		JOIN products p ON p.id = oi.product_id
+		WHERE oi.order_id = $1`
 
 	rows, err := s.pool.Query(ctx, q, o.ID)
 	if err != nil {
@@ -228,7 +230,7 @@ func (s *OrderStore) loadItems(ctx context.Context, o *order.Order) error {
 
 	for rows.Next() {
 		item := order.OrderItem{}
-		if err := rows.Scan(&item.ID, &item.OrderID, &item.ProductID, &item.Quantity, &item.PriceCents, &item.CreatedAt); err != nil {
+		if err := rows.Scan(&item.ID, &item.OrderID, &item.ProductID, &item.ProductName, &item.Quantity, &item.PriceCents, &item.CreatedAt); err != nil {
 			return fmt.Errorf("order_store.loadItems scan: %w", err)
 		}
 		o.Items = append(o.Items, item)

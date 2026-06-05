@@ -14,11 +14,9 @@ export const ORDER_STATUS_LABELS: Record<string, string> = {
   refunded:            'Refunded',
 }
 
-// payment_captured is intentionally excluded — it is a transitional state.
-// The saga continues from there to confirmed → fulfilled, and the SSE
-// connection must stay open to receive those updates.
+// confirmed is intentionally excluded — the saga still transitions to fulfilled.
+// Only fulfilled (and failure/cancellation states) are true end states.
 export const TERMINAL_STATUSES = new Set([
-  'confirmed',
   'fulfilled',
   'cancelled',
   'payment_failed',
@@ -49,15 +47,24 @@ export function useOrderStream(orderId: string | null, initialStatus?: string) {
     const url = `/api/orders/${orderId}/events/stream?token=${token}`
     const es = new EventSource(url)
 
-    es.onmessage = (e) => {
-      const newStatus = e.data.trim()
-      if (newStatus) {
-        setStatus(newStatus)
-        if (TERMINAL_STATUSES.has(newStatus)) {
-          es.close()
+    // The backend sends named events: `event: status\ndata: {"order_id":"...","status":"..."}`.
+    // es.onmessage only fires for unnamed ("message") events, so we must use addEventListener.
+    es.addEventListener('status', (e) => {
+      try {
+        const { status: newStatus } = JSON.parse(e.data) as { status: string }
+        if (newStatus) {
+          setStatus(newStatus)
+          if (TERMINAL_STATUSES.has(newStatus)) {
+            es.close()
+          }
         }
+      } catch {
+        // malformed payload — ignore
       }
-    }
+    })
+
+    // Server signals the stream is finished after a terminal status.
+    es.addEventListener('done', () => es.close())
 
     es.onerror = () => {
       es.close()

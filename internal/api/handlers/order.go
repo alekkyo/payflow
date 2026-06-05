@@ -301,8 +301,7 @@ func sendSSE(w http.ResponseWriter, flusher http.Flusher, event string, data any
 
 func isTerminal(status string) bool {
 	switch status {
-	case order.StatusConfirmed, order.StatusFulfilled,
-		order.StatusCancelled, order.StatusRefunded:
+	case order.StatusFulfilled, order.StatusCancelled, order.StatusRefunded:
 		return true
 	}
 	return false
@@ -339,9 +338,10 @@ func (h *OrderHandler) resolveItems(ctx context.Context, reqItems []order.Create
 		}
 
 		items = append(items, order.OrderItem{
-			ProductID:  ri.ProductID,
-			Quantity:   ri.Quantity,
-			PriceCents: p.PriceCents,
+			ProductID:   ri.ProductID,
+			ProductName: p.Name,
+			Quantity:    ri.Quantity,
+			PriceCents:  p.PriceCents,
 		})
 		totalCents += p.PriceCents * ri.Quantity
 	}

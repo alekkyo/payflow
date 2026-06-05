@@ -79,6 +79,28 @@ func (s *InventoryStore) Reserve(ctx context.Context, productID uuid.UUID, quant
 	return tag.RowsAffected() == 1, nil
 }
 
+// ListAvailable returns a map of product_id → available quantity (quantity - reserved) for all products.
+func (s *InventoryStore) ListAvailable(ctx context.Context) (map[uuid.UUID]int, error) {
+	const q = `SELECT product_id, quantity - reserved AS available FROM inventory`
+
+	rows, err := s.pool.Query(ctx, q)
+	if err != nil {
+		return nil, fmt.Errorf("inventory_store.ListAvailable: %w", err)
+	}
+	defer rows.Close()
+
+	result := make(map[uuid.UUID]int)
+	for rows.Next() {
+		var id uuid.UUID
+		var available int
+		if err := rows.Scan(&id, &available); err != nil {
+			return nil, fmt.Errorf("inventory_store.ListAvailable scan: %w", err)
+		}
+		result[id] = available
+	}
+	return result, rows.Err()
+}
+
 // Release decrements reserved by quantity only if the current version matches expectedVersion.
 // Returns true if the row was updated, false if the version was stale.
 func (s *InventoryStore) Release(ctx context.Context, productID uuid.UUID, quantity, expectedVersion int) (bool, error) {

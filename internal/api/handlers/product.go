@@ -84,6 +84,24 @@ func (h *ProductHandler) GetByID(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, p)
 }
 
+// Inventory handles GET /products/inventory — returns available stock per product.
+// Used by the catalog to display low-stock warnings without exposing reserved counts.
+func (h *ProductHandler) Inventory(w http.ResponseWriter, r *http.Request) {
+	levels, err := h.invStore.ListAvailable(r.Context())
+	if err != nil {
+		h.logger.Error("product.Inventory", "error", err)
+		writeError(w, http.StatusInternalServerError, "internal server error")
+		return
+	}
+
+	// Convert UUID keys to strings — encoding/json cannot marshal map[uuid.UUID]int directly.
+	result := make(map[string]int, len(levels))
+	for k, v := range levels {
+		result[k.String()] = v
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"inventory": result})
+}
+
 // Create handles POST /products (admin only).
 func (h *ProductHandler) Create(w http.ResponseWriter, r *http.Request) {
 	var req product.CreateProductRequest

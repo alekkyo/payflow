@@ -83,6 +83,7 @@ func NewServer(
 
 	// Products (public — reads)
 	r.Get("/products", productHandler.List)
+	r.Get("/products/inventory", productHandler.Inventory) // static route must precede /{id}
 	r.Get("/products/{id}", productHandler.GetByID)
 
 	// Products (admin — writes)

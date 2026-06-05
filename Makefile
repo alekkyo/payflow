@@ -7,7 +7,7 @@ export PATH := $(HOME)/.orbstack/bin:/Applications/Docker.app/Contents/Resources
 BINARY_API    := bin/api
 BINARY_WORKER := bin/worker
 
-.PHONY: dev api worker migrate migrate-down test test-race lint build stripe-listen clean frontend frontend-install
+.PHONY: dev api worker migrate migrate-down seed cache-clear test test-race lint build stripe-listen clean frontend frontend-install
 
 ## dev: start all Docker infrastructure services
 dev:
@@ -28,6 +28,21 @@ migrate:
 ## migrate-down: roll back all database migrations
 migrate-down:
 	go run ./cmd/migrate down
+
+## seed: insert demo products and inventory into the database
+seed:
+	go run ./cmd/seed
+
+## cache-clear: delete all product cache keys from Redis (preserves sessions and queue data)
+cache-clear:
+	@REDIS=$$(docker compose ps -q redis) && \
+	KEYS=$$(docker exec $$REDIS redis-cli --scan --pattern "products:*") && \
+	if [ -n "$$KEYS" ]; then \
+		echo "$$KEYS" | xargs docker exec $$REDIS redis-cli DEL && \
+		echo "Product cache cleared."; \
+	else \
+		echo "No product cache keys found."; \
+	fi
 
 ## test: run all tests
 test:

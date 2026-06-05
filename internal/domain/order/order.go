@@ -52,12 +52,13 @@ type Order struct {
 
 // OrderItem is a single line in an order — a product at the price snapshotted at order time.
 type OrderItem struct {
-	ID         uuid.UUID `json:"id"`
-	OrderID    uuid.UUID `json:"order_id"`
-	ProductID  uuid.UUID `json:"product_id"`
-	Quantity   int       `json:"quantity"`
-	PriceCents int       `json:"price_cents"`
-	CreatedAt  time.Time `json:"created_at"`
+	ID          uuid.UUID `json:"id"`
+	OrderID     uuid.UUID `json:"order_id"`
+	ProductID   uuid.UUID `json:"product_id"`
+	ProductName string    `json:"product_name"`
+	Quantity    int       `json:"quantity"`
+	PriceCents  int       `json:"price_cents"`
+	CreatedAt   time.Time `json:"created_at"`
 }
 
 // OrderEvent is an immutable entry in the append-only event log.
