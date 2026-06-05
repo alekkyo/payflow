@@ -53,6 +53,17 @@ services:
     depends_on:
       - prometheus
 
+  # Jaeger all-in-one: receives OTLP traces and provides a UI for viewing them.
+  # UI:          http://localhost:16686
+  # OTLP HTTP:   http://localhost:4318  (used by the Go services)
+  jaeger:
+    image: jaegertracing/all-in-one:latest
+    ports:
+      - "16686:16686"  # Jaeger UI
+      - "4318:4318"    # OTLP HTTP receiver
+    environment:
+      - COLLECTOR_OTLP_ENABLED=true
+
 volumes:
   postgres_data:
   grafana_data:

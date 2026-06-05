@@ -4,6 +4,7 @@ package config
 import (
 	"fmt"
 	"os"
+	"strings"
 	"time"
 )
 
@@ -17,6 +18,8 @@ type Config struct {
 	WorkerDelay         time.Duration // artificial delay before processing; useful in dev to observe state transitions via SSE
 	StripeAPIKey        string
 	StripeWebhookSecret string
+	AllowedOrigins      []string // CORS allowed origins, e.g. ["http://localhost:5173"]
+	OTLPEndpoint        string   // OpenTelemetry collector endpoint, e.g. "localhost:4318"
 }
 
 // Load reads configuration from environment variables and returns a Config.
@@ -44,6 +47,13 @@ func Load() (*Config, error) {
 
 	workerDelay, _ := time.ParseDuration(os.Getenv("WORKER_DELAY"))
 
+	// ALLOWED_ORIGINS is a comma-separated list: "http://localhost:5173,https://app.example.com"
+	// Defaults to localhost:5173 (Vite dev server) in development.
+	allowedOrigins := []string{"http://localhost:5173"}
+	if raw := os.Getenv("ALLOWED_ORIGINS"); raw != "" {
+		allowedOrigins = strings.Split(raw, ",")
+	}
+
 	return &Config{
 		DatabaseURL:         databaseURL,
 		RedisURL:            redisURL,
@@ -53,5 +63,7 @@ func Load() (*Config, error) {
 		WorkerDelay:         workerDelay,
 		StripeAPIKey:        os.Getenv("STRIPE_API_KEY"),
 		StripeWebhookSecret: os.Getenv("STRIPE_WEBHOOK_SECRET"),
+		AllowedOrigins:      allowedOrigins,
+		OTLPEndpoint:        os.Getenv("OTEL_EXPORTER_OTLP_ENDPOINT"),
 	}, nil
 }

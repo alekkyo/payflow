@@ -13,6 +13,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/redis/go-redis/v9"
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 
 	"github.com/alexkua/payflow/internal/api/handlers"
 	"github.com/alexkua/payflow/internal/api/middleware"
@@ -51,6 +52,7 @@ func NewServer(
 	// Global middleware
 	r.Use(chimiddleware.RequestID)
 	r.Use(chimiddleware.Recoverer)
+	r.Use(middleware.CORS(cfg.AllowedOrigins))
 	r.Use(middleware.Logger(logger))
 
 	productCache := redisstore.NewProductCache(rdb)
@@ -131,10 +133,19 @@ func NewServer(
 		r.Get("/admin/queues", adminHandler.GetQueueDepths)
 	})
 
+	// otelhttp wraps the entire router so every request automatically gets a
+	// root trace span. The span name is set from the matched route pattern
+	// ("GET /orders/{id}") rather than the raw path, avoiding cardinality issues.
+	handler := otelhttp.NewHandler(r, "payflow-api",
+		otelhttp.WithSpanNameFormatter(func(op string, r *http.Request) string {
+			return r.Method + " " + r.URL.Path
+		}),
+	)
+
 	return &Server{
 		httpServer: &http.Server{
 			Addr:         ":" + cfg.Port,
-			Handler:      r,
+			Handler:      handler,
 			ReadTimeout:  10 * time.Second,
 			WriteTimeout: 0, // disabled — SSE connections are long-lived
 			IdleTimeout:  120 * time.Second,

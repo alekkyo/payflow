@@ -33,6 +33,13 @@ func main() {
 	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer cancel()
 
+	shutdownTracer, err := observability.InitTracer(ctx, "payflow-worker", cfg.OTLPEndpoint)
+	if err != nil {
+		logger.Error("initialising tracer", "error", err)
+		os.Exit(1)
+	}
+	defer shutdownTracer(context.Background()) //nolint:errcheck
+
 	pool, err := pgstore.NewPool(ctx, cfg.DatabaseURL)
 	if err != nil {
 		logger.Error("connecting to postgres", "error", err)
@@ -127,6 +134,18 @@ func main() {
 		refundWorker.Run(ctx)
 	}()
 
+	// Email workers — 1 instance. Sends order confirmation after payment captured.
+	emailWorker, err := worker.NewEmailWorker(ctx, rdb, orderStore, "email-worker-0", logger)
+	if err != nil {
+		logger.Error("creating email worker", "error", err)
+		os.Exit(1)
+	}
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		emailWorker.Run(ctx)
+	}()
+
 	// Reconciliation worker — 1 instance. Triggered by messages in stream:reconciliation.trigger.
 	reconcileWorker, err := worker.NewReconcileWorker(ctx, rdb, paymentStore, stripeProvider, reconcileStore, "reconcile-worker-0", logger)
 	if err != nil {
@@ -178,6 +197,7 @@ func main() {
 		"inventory_workers", numInventoryWorkers,
 		"payment_workers", numPaymentWorkers,
 		"webhook_workers", numWebhookWorkers,
+		"email_workers", 1,
 		"refund_workers", 1,
 		"reconcile_workers", 1,
 	)

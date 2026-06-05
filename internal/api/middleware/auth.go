@@ -65,10 +65,12 @@ func ClaimsFromContext(ctx context.Context) (*user.Claims, bool) {
 }
 
 // BearerToken extracts the token from an "Authorization: Bearer <token>" header.
+// Falls back to the "token" query parameter to support SSE connections —
+// EventSource does not support custom headers, so the token must be in the URL.
 func BearerToken(r *http.Request) string {
 	h := r.Header.Get("Authorization")
-	if !strings.HasPrefix(h, "Bearer ") {
-		return ""
+	if strings.HasPrefix(h, "Bearer ") {
+		return strings.TrimPrefix(h, "Bearer ")
 	}
-	return strings.TrimPrefix(h, "Bearer ")
+	return r.URL.Query().Get("token")
 }

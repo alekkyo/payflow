@@ -5,10 +5,19 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"strings"
 	"time"
+
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/propagation"
+	"go.opentelemetry.io/otel/trace"
 
 	"github.com/redis/go-redis/v9"
 )
+
+// traceKey is the prefix used to store W3C Trace Context fields in stream messages.
+// e.g. "trace_traceparent" → "00-abc...-01"
+const traceKey = "trace_"
 
 // Stream name constants — single source of truth for all stream keys.
 const (
@@ -38,7 +47,18 @@ func NewProducer(client *redis.Client) *Producer {
 }
 
 // Publish sends a message to the given stream and returns the message ID.
+// The current trace context is injected into the message fields using the W3C
+// traceparent/tracestate format so workers can continue the trace as child spans.
 func (p *Producer) Publish(ctx context.Context, stream string, fields map[string]any) (string, error) {
+	// Inject trace context — otel.GetTextMapPropagator() returns the propagator
+	// registered in InitTracer (W3C TraceContext + Baggage). The carrier serializes
+	// the context into the map fields we're about to store in the stream.
+	carrier := make(propagation.MapCarrier)
+	otel.GetTextMapPropagator().Inject(ctx, carrier)
+	for k, v := range carrier {
+		fields[traceKey+k] = v
+	}
+
 	id, err := p.client.XAdd(ctx, &redis.XAddArgs{
 		Stream: stream,
 		Values: fields,
@@ -129,6 +149,26 @@ func (c *Consumer) Run(ctx context.Context, handler HandlerFunc) {
 // process handles one message: calls the handler, acknowledges on success,
 // or dead-letters after maxRetries failures.
 func (c *Consumer) process(ctx context.Context, msg redis.XMessage, handler HandlerFunc) {
+	// Extract the trace context that the producer injected into the message fields.
+	// This re-connects this worker span to the original request's trace, so the
+	// full chain (HTTP handler → queue → worker) appears as one trace in Jaeger.
+	carrier := make(propagation.MapCarrier)
+	for k, v := range msg.Values {
+		if strings.HasPrefix(k, traceKey) {
+			val, _ := v.(string)
+			carrier[strings.TrimPrefix(k, traceKey)] = val
+		}
+	}
+	ctx = otel.GetTextMapPropagator().Extract(ctx, carrier)
+
+	// Start a child span for this message. The span name includes the stream
+	// so it's easy to filter in Jaeger by stream type.
+	spanName := "consumer.process " + c.stream
+	ctx, span := otel.Tracer("payflow/queue").Start(ctx, spanName,
+		trace.WithSpanKind(trace.SpanKindConsumer),
+	)
+	defer span.End()
+
 	err := handler(ctx, msg)
 	if err == nil {
 		c.ack(ctx, msg.ID)

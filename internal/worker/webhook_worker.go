@@ -132,19 +132,39 @@ func (w *WebhookWorker) handlePaymentSucceeded(ctx context.Context, stripePaymen
 
 	w.setOrderStatusCache(ctx, p.OrderID, order.StatusPaymentCaptured)
 
-	// Publish to the next saga stage — email worker and fulfillment worker
-	// (implemented in Week 5) will react to this stream.
-	payload, _ := json.Marshal(map[string]string{
-		"order_id":   p.OrderID.String(),
-		"payment_id": p.ID.String(),
-	})
+	// Publish to the payments.captured stream so the email worker can react.
 	if _, err := w.producer.Publish(ctx, queue.StreamPaymentsCaptured, map[string]any{
 		"order_id":   p.OrderID.String(),
 		"payment_id": p.ID.String(),
 	}); err != nil {
 		w.logger.Error("webhook_worker publish payments.captured", "order_id", p.OrderID, "error", err)
 	}
-	_ = payload
+
+	// Advance the saga: payment_captured → confirmed → fulfilled.
+	// For this demo there is no physical fulfillment step, so both transitions
+	// happen inline. Each UpdateStatus + setOrderStatusCache pair persists the
+	// new state and pushes an SSE event to any connected browser.
+	if err := w.orderStore.UpdateStatus(ctx,
+		p.OrderID,
+		order.StatusConfirmed,
+		order.EventConfirmed,
+		w.workerID,
+		nil,
+	); err != nil {
+		return fmt.Errorf("webhook_worker.handlePaymentSucceeded confirm order %s: %w", p.OrderID, err)
+	}
+	w.setOrderStatusCache(ctx, p.OrderID, order.StatusConfirmed)
+
+	if err := w.orderStore.UpdateStatus(ctx,
+		p.OrderID,
+		order.StatusFulfilled,
+		order.EventFulfilled,
+		w.workerID,
+		nil,
+	); err != nil {
+		return fmt.Errorf("webhook_worker.handlePaymentSucceeded fulfill order %s: %w", p.OrderID, err)
+	}
+	w.setOrderStatusCache(ctx, p.OrderID, order.StatusFulfilled)
 
 	observability.PaymentsTotal.WithLabelValues("captured").Inc()
 

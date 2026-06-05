@@ -7,7 +7,7 @@ export PATH := $(HOME)/.orbstack/bin:/Applications/Docker.app/Contents/Resources
 BINARY_API    := bin/api
 BINARY_WORKER := bin/worker
 
-.PHONY: dev api worker migrate migrate-down test test-race lint build stripe-listen clean
+.PHONY: dev api worker migrate migrate-down test test-race lint build stripe-listen clean frontend frontend-install
 
 ## dev: start all Docker infrastructure services
 dev:
@@ -45,6 +45,14 @@ lint:
 build:
 	go build -o $(BINARY_API) ./cmd/api
 	go build -o $(BINARY_WORKER) ./cmd/worker
+
+## frontend-install: install frontend npm dependencies
+frontend-install:
+	cd frontend && npm install
+
+## frontend: start the Vite dev server (proxies /api/* to localhost:8080)
+frontend:
+	cd frontend && npm run dev
 
 ## stripe-listen: forward Stripe webhooks to localhost (requires Stripe CLI installed)
 stripe-listen:

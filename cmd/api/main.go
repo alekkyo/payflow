@@ -29,6 +29,15 @@ func main() {
 	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer cancel()
 
+	// InitTracer sets up the global OTel TracerProvider and W3C propagator.
+	// Every HTTP request handled by otelhttp gets a root span automatically.
+	shutdownTracer, err := observability.InitTracer(ctx, "payflow-api", cfg.OTLPEndpoint)
+	if err != nil {
+		logger.Error("initialising tracer", "error", err)
+		os.Exit(1)
+	}
+	defer shutdownTracer(context.Background()) //nolint:errcheck
+
 	pool, err := pgstore.NewPool(ctx, cfg.DatabaseURL)
 	if err != nil {
 		logger.Error("connecting to postgres", "error", err)
