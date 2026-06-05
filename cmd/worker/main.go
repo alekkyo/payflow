@@ -8,10 +8,12 @@ import (
 	"os/signal"
 	"sync"
 	"syscall"
+	"time"
 
 	"github.com/alexkua/payflow/internal/config"
 	"github.com/alexkua/payflow/internal/domain/product"
 	"github.com/alexkua/payflow/internal/observability"
+	"github.com/alexkua/payflow/internal/queue"
 	pgstore "github.com/alexkua/payflow/internal/store/postgres"
 	rdstore "github.com/alexkua/payflow/internal/store/redis"
 	stripeclient "github.com/alexkua/payflow/internal/stripe"
@@ -45,12 +47,13 @@ func main() {
 	}
 	defer rdb.Close()
 
-	orderStore     := pgstore.NewOrderStore(pool)
-	inventoryStore := pgstore.NewInventoryStore(pool)
-	paymentStore   := pgstore.NewPaymentStore(pool)
-	invSvc         := product.NewInventoryService(inventoryStore)
-	locker         := rdstore.NewLocker(rdb)
-	stripeProvider := stripeclient.NewClient(cfg.StripeAPIKey, cfg.StripeWebhookSecret)
+	orderStore      := pgstore.NewOrderStore(pool)
+	inventoryStore  := pgstore.NewInventoryStore(pool)
+	paymentStore    := pgstore.NewPaymentStore(pool)
+	reconcileStore  := pgstore.NewReconciliationStore(pool)
+	invSvc          := product.NewInventoryService(inventoryStore)
+	locker          := rdstore.NewLocker(rdb)
+	stripeProvider  := stripeclient.NewClient(cfg.StripeAPIKey, cfg.StripeWebhookSecret)
 
 	var wg sync.WaitGroup
 
@@ -124,11 +127,59 @@ func main() {
 		refundWorker.Run(ctx)
 	}()
 
+	// Reconciliation worker — 1 instance. Triggered by messages in stream:reconciliation.trigger.
+	reconcileWorker, err := worker.NewReconcileWorker(ctx, rdb, paymentStore, stripeProvider, reconcileStore, "reconcile-worker-0", logger)
+	if err != nil {
+		logger.Error("creating reconcile worker", "error", err)
+		os.Exit(1)
+	}
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		reconcileWorker.Run(ctx)
+	}()
+
+	// Queue depth monitor — polls every 15 seconds and updates the QueueDepth gauge.
+	// This gives Prometheus a real-time view of how backed-up each stream is.
+	// XLEN returns the total number of entries in a stream (not just pending ones), which
+	// is a useful proxy for work-in-flight when the workers are keeping up.
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		monitoredStreams := []string{
+			queue.StreamOrdersCreated,
+			queue.StreamPaymentsReady,
+			queue.StreamPaymentsCaptured,
+			queue.StreamPaymentsFailed,
+			queue.StreamRefundsRequested,
+			queue.StreamStripeWebhooks,
+			queue.StreamReconcileTrigger,
+			queue.StreamDeadLetter,
+		}
+		ticker := time.NewTicker(15 * time.Second)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				for _, stream := range monitoredStreams {
+					length, err := rdb.XLen(ctx, stream).Result()
+					if err != nil {
+						continue
+					}
+					observability.QueueDepth.WithLabelValues(stream).Set(float64(length))
+				}
+			}
+		}
+	}()
+
 	logger.Info("worker service started",
 		"inventory_workers", numInventoryWorkers,
 		"payment_workers", numPaymentWorkers,
 		"webhook_workers", numWebhookWorkers,
 		"refund_workers", 1,
+		"reconcile_workers", 1,
 	)
 
 	wg.Wait()

@@ -15,6 +15,7 @@ import (
 	"github.com/alexkua/payflow/internal/api/middleware"
 	"github.com/alexkua/payflow/internal/domain/order"
 	"github.com/alexkua/payflow/internal/domain/product"
+	"github.com/alexkua/payflow/internal/observability"
 	"github.com/alexkua/payflow/internal/queue"
 )
 
@@ -120,6 +121,8 @@ func (h *OrderHandler) Create(w http.ResponseWriter, r *http.Request) {
 		h.logger.Error("order.Create publish", "order_id", o.ID, "error", err)
 		// Non-fatal: order is persisted; a reconciliation job can re-trigger the saga.
 	}
+
+	observability.OrdersTotal.WithLabelValues("created").Inc()
 
 	h.logger.Info("order created",
 		"order_id", o.ID,

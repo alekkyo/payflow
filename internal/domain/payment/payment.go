@@ -113,6 +113,10 @@ type Store interface {
 
 	// GetRefundByIdempotencyKey returns a refund by its idempotency key, or ErrNotFound.
 	GetRefundByIdempotencyKey(ctx context.Context, key string) (*Refund, error)
+
+	// ListPaymentsByDateRange returns all payments created within [from, to].
+	// Used by the reconciliation worker to compare against Stripe's records.
+	ListPaymentsByDateRange(ctx context.Context, from, to time.Time) ([]*Payment, error)
 }
 
 // PaymentProvider is the interface for payment processing providers.
@@ -121,6 +125,19 @@ type PaymentProvider interface {
 	CreatePaymentIntent(ctx context.Context, req PaymentIntentRequest) (*PaymentIntentResult, error)
 	CreateRefund(ctx context.Context, req RefundRequest) (*RefundResult, error)
 	ConstructWebhookEvent(payload []byte, signature string) (*WebhookEvent, error)
+
+	// ListPaymentIntents fetches all payment intents created within [from, to].
+	// Used by the reconciliation worker to compare against our local records.
+	ListPaymentIntents(ctx context.Context, from, to time.Time) ([]PaymentIntentSummary, error)
+}
+
+// PaymentIntentSummary holds the fields we compare during reconciliation.
+type PaymentIntentSummary struct {
+	StripeID    string
+	Status      string
+	AmountCents int
+	Currency    string
+	OrderID     string // extracted from Stripe metadata["order_id"]
 }
 
 // PaymentIntentRequest carries the data needed to create a Stripe PaymentIntent.

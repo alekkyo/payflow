@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -280,6 +281,31 @@ func (s *PaymentStore) GetRefundByIdempotencyKey(ctx context.Context, key string
 		return nil, fmt.Errorf("payment_store.GetRefundByIdempotencyKey: %w", err)
 	}
 	return r, nil
+}
+
+func (s *PaymentStore) ListPaymentsByDateRange(ctx context.Context, from, to time.Time) ([]*payment.Payment, error) {
+	const q = `
+		SELECT id, order_id, stripe_payment_id, amount_cents, currency, status,
+		       idempotency_key, failure_reason, created_at, updated_at
+		FROM payments
+		WHERE created_at >= $1 AND created_at < $2
+		ORDER BY created_at ASC`
+
+	rows, err := s.pool.Query(ctx, q, from, to)
+	if err != nil {
+		return nil, fmt.Errorf("payment_store.ListPaymentsByDateRange: %w", err)
+	}
+	defer rows.Close()
+
+	var payments []*payment.Payment
+	for rows.Next() {
+		p := &payment.Payment{}
+		if err := scanPayment(rows, p); err != nil {
+			return nil, fmt.Errorf("payment_store.ListPaymentsByDateRange scan: %w", err)
+		}
+		payments = append(payments, p)
+	}
+	return payments, rows.Err()
 }
 
 func (s *PaymentStore) loadEvents(ctx context.Context, paymentID uuid.UUID) ([]payment.PaymentEvent, error) {

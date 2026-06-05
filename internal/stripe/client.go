@@ -7,6 +7,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strconv"
+	"time"
 
 	stripelib "github.com/stripe/stripe-go/v81"
 	"github.com/stripe/stripe-go/v81/paymentintent"
@@ -80,6 +82,38 @@ func (c *Client) CreateRefund(ctx context.Context, req payment.RefundRequest) (*
 		StripeRefundID: r.ID,
 		Status:         string(r.Status),
 	}, nil
+}
+
+// ListPaymentIntents fetches all PaymentIntents created within [from, to] from the Stripe API.
+// We paginate automatically via the SDK iterator so we don't miss intents when there are many.
+// The "order_id" metadata field is used to correlate intents back to our local records.
+func (c *Client) ListPaymentIntents(ctx context.Context, from, to time.Time) ([]payment.PaymentIntentSummary, error) {
+	params := &stripelib.PaymentIntentListParams{}
+	// Stripe filters by Unix timestamps; [gte] and [lte] form a closed interval.
+	params.Filters.AddFilter("created[gte]", "", strconv.FormatInt(from.Unix(), 10))
+	params.Filters.AddFilter("created[lte]", "", strconv.FormatInt(to.Unix(), 10))
+	params.Filters.AddFilter("limit", "", "100")
+
+	var results []payment.PaymentIntentSummary
+	iter := paymentintent.List(params)
+	for iter.Next() {
+		pi := iter.PaymentIntent()
+		orderID := ""
+		if pi.Metadata != nil {
+			orderID = pi.Metadata["order_id"]
+		}
+		results = append(results, payment.PaymentIntentSummary{
+			StripeID:    pi.ID,
+			Status:      string(pi.Status),
+			AmountCents: int(pi.Amount),
+			Currency:    string(pi.Currency),
+			OrderID:     orderID,
+		})
+	}
+	if err := iter.Err(); err != nil {
+		return nil, fmt.Errorf("stripe.ListPaymentIntents: %w", err)
+	}
+	return results, nil
 }
 
 // ConstructWebhookEvent validates the Stripe-Signature header and parses the event body.

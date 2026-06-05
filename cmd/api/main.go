@@ -43,14 +43,15 @@ func main() {
 	}
 	defer rdb.Close()
 
-	userStore      := pgstore.NewUserStore(pool)
-	productStore   := pgstore.NewProductStore(pool)
-	inventoryStore := pgstore.NewInventoryStore(pool)
-	orderStore     := pgstore.NewOrderStore(pool)
-	paymentStore   := pgstore.NewPaymentStore(pool)
-	stripeProvider := stripeclient.NewClient(cfg.StripeAPIKey, cfg.StripeWebhookSecret)
+	userStore       := pgstore.NewUserStore(pool)
+	productStore    := pgstore.NewProductStore(pool)
+	inventoryStore  := pgstore.NewInventoryStore(pool)
+	orderStore      := pgstore.NewOrderStore(pool)
+	paymentStore    := pgstore.NewPaymentStore(pool)
+	reconcileStore  := pgstore.NewReconciliationStore(pool)
+	stripeProvider  := stripeclient.NewClient(cfg.StripeAPIKey, cfg.StripeWebhookSecret)
 
-	srv := api.NewServer(cfg, pool, rdb, userStore, productStore, inventoryStore, orderStore, paymentStore, stripeProvider, logger)
+	srv := api.NewServer(cfg, pool, rdb, userStore, productStore, inventoryStore, orderStore, paymentStore, stripeProvider, reconcileStore, logger)
 
 	serverErr := make(chan error, 1)
 	go func() {

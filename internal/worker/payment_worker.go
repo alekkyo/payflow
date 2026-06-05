@@ -13,6 +13,7 @@ import (
 
 	"github.com/alexkua/payflow/internal/domain/order"
 	"github.com/alexkua/payflow/internal/domain/payment"
+	"github.com/alexkua/payflow/internal/observability"
 	"github.com/alexkua/payflow/internal/queue"
 	redisstore "github.com/alexkua/payflow/internal/store/redis"
 )
@@ -82,6 +83,13 @@ func (w *PaymentWorker) Run(ctx context.Context) {
 
 // handle processes one payments.ready event.
 func (w *PaymentWorker) handle(ctx context.Context, msg redis.XMessage) error {
+	start := time.Now()
+	defer func() {
+		observability.QueueProcessingDuration.WithLabelValues(
+			queue.StreamPaymentsReady, "payment-worker",
+		).Observe(time.Since(start).Seconds())
+	}()
+
 	if w.delay > 0 {
 		select {
 		case <-time.After(w.delay):
@@ -149,19 +157,24 @@ func (w *PaymentWorker) handle(ctx context.Context, msg redis.XMessage) error {
 	w.setStatusCache(ctx, orderID, order.StatusPaymentProcessing)
 
 	// Call Stripe.
+	stripeStart := time.Now()
 	result, err := w.provider.CreatePaymentIntent(ctx, payment.PaymentIntentRequest{
 		OrderID:        orderID,
 		AmountCents:    o.TotalCents,
 		Currency:       o.Currency,
 		IdempotencyKey: idempotencyKey,
 	})
+	observability.PaymentProcessingDuration.Observe(time.Since(stripeStart).Seconds())
+
 	if err != nil {
 		// Stripe call failed — record the failure and trigger compensation.
+		observability.PaymentsTotal.WithLabelValues("failed").Inc()
 		payload, _ := json.Marshal(map[string]string{"error": err.Error()})
 		_ = w.paymentStore.UpdateStatus(ctx, p.ID, payment.StatusFailed, "", err.Error(), payment.EventFailed, payload)
 		w.publishPaymentFailed(ctx, orderID, err.Error())
 		return nil // handled — ACK the message
 	}
+	observability.PaymentsTotal.WithLabelValues("initiated").Inc()
 
 	// Stripe accepted the intent. Record the Stripe ID and mark as processing.
 	payload, _ := json.Marshal(map[string]string{"stripe_payment_id": result.StripeID, "status": result.Status})

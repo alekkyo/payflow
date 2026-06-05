@@ -11,6 +11,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	chimiddleware "github.com/go-chi/chi/v5/middleware"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/redis/go-redis/v9"
 
 	"github.com/alexkua/payflow/internal/api/handlers"
@@ -19,6 +20,7 @@ import (
 	"github.com/alexkua/payflow/internal/domain/order"
 	"github.com/alexkua/payflow/internal/domain/payment"
 	"github.com/alexkua/payflow/internal/domain/product"
+	"github.com/alexkua/payflow/internal/domain/reconciliation"
 	"github.com/alexkua/payflow/internal/domain/user"
 	"github.com/alexkua/payflow/internal/queue"
 	redisstore "github.com/alexkua/payflow/internal/store/redis"
@@ -41,6 +43,7 @@ func NewServer(
 	orderStore order.Store,
 	paymentStore payment.Store,
 	provider payment.PaymentProvider,
+	reconcileStore reconciliation.Store,
 	logger *slog.Logger,
 ) *Server {
 	r := chi.NewRouter()
@@ -57,10 +60,14 @@ func NewServer(
 	orderHandler := handlers.NewOrderHandler(orderStore, productStore, inventoryStore, producer, rdb, logger)
 	paymentHandler := handlers.NewPaymentHandler(paymentStore, orderStore, producer, logger)
 	webhookHandler := handlers.NewWebhookHandler(provider, paymentStore, producer, logger)
+	adminHandler := handlers.NewAdminHandler(reconcileStore, producer, rdb, logger)
 
 	// Observability
 	r.Get("/health", handlers.Health)
 	r.Get("/ready", handlers.Ready(pool, rdb))
+	// /metrics exposes all Prometheus counters, histograms, and gauges for scraping
+	// by Prometheus or Grafana. Registered automatically via promauto in the observability package.
+	r.Get("/metrics", promhttp.Handler().ServeHTTP)
 
 	// Auth (public)
 	r.Post("/auth/register", authHandler.Register)
@@ -89,7 +96,10 @@ func NewServer(
 	// Orders (authenticated)
 	r.Group(func(r chi.Router) {
 		r.Use(middleware.Auth(userStore))
-		r.Post("/orders", orderHandler.Create)
+		// Rate limit order creation: 5 requests per minute per authenticated user.
+		// Protects against runaway clients and makes the per-user cost of spam expensive.
+		r.With(middleware.RateLimit(rdb, "orders:create", 5, time.Minute, middleware.UserIDFromClaims)).
+			Post("/orders", orderHandler.Create)
 		r.Get("/orders", orderHandler.List)
 		r.Get("/orders/{id}", orderHandler.GetByID)
 		r.Post("/orders/{id}/cancel", orderHandler.Cancel)
@@ -105,7 +115,21 @@ func NewServer(
 	})
 
 	// Webhooks (public — Stripe signs payloads, we validate the signature instead of using auth)
-	r.Post("/webhooks/stripe", webhookHandler.Handle)
+	// Rate limit by IP: 100 per minute. Stripe sends at most a few events per second in normal
+	// operation; this stops a misconfigured or malicious sender from flooding our queue.
+	r.With(middleware.RateLimit(rdb, "webhooks:stripe", 100, time.Minute, middleware.IPAddress)).
+		Post("/webhooks/stripe", webhookHandler.Handle)
+
+	// Admin routes (authenticated + admin role required)
+	r.Group(func(r chi.Router) {
+		r.Use(middleware.Auth(userStore))
+		r.Use(middleware.RequireAdmin)
+		r.Get("/admin/reconciliation/runs", adminHandler.ListReconciliationRuns)
+		r.Get("/admin/reconciliation/runs/{id}", adminHandler.GetReconciliationRun)
+		r.Post("/admin/reconciliation/trigger", adminHandler.TriggerReconciliation)
+		r.Get("/admin/deadletter", adminHandler.ListDeadLetterMessages)
+		r.Get("/admin/queues", adminHandler.GetQueueDepths)
+	})
 
 	return &Server{
 		httpServer: &http.Server{

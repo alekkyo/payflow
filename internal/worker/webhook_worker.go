@@ -11,6 +11,7 @@ import (
 
 	"github.com/alexkua/payflow/internal/domain/order"
 	"github.com/alexkua/payflow/internal/domain/payment"
+	"github.com/alexkua/payflow/internal/observability"
 	"github.com/alexkua/payflow/internal/queue"
 )
 
@@ -66,9 +67,18 @@ func (w *WebhookWorker) Run(ctx context.Context) {
 
 // handle routes a single Stripe event to the appropriate handler.
 func (w *WebhookWorker) handle(ctx context.Context, msg redis.XMessage) error {
+	start := time.Now()
+	defer func() {
+		observability.QueueProcessingDuration.WithLabelValues(
+			queue.StreamStripeWebhooks, "webhook-worker",
+		).Observe(time.Since(start).Seconds())
+	}()
+
 	eventType, _ := msg.Values["event_type"].(string)
 	stripePaymentID, _ := msg.Values["stripe_payment_id"].(string)
 	rawPayload, _ := msg.Values["raw_payload"].(string)
+
+	observability.WebhookEventsTotal.WithLabelValues(eventType).Inc()
 
 	w.logger.Info("webhook_worker processing",
 		"event_type", eventType,
@@ -136,6 +146,8 @@ func (w *WebhookWorker) handlePaymentSucceeded(ctx context.Context, stripePaymen
 	}
 	_ = payload
 
+	observability.PaymentsTotal.WithLabelValues("captured").Inc()
+
 	w.logger.Info("webhook_worker payment captured",
 		"order_id", p.OrderID,
 		"payment_id", p.ID,
@@ -186,6 +198,8 @@ func (w *WebhookWorker) handlePaymentFailed(ctx context.Context, stripePaymentID
 	}); err != nil {
 		w.logger.Error("webhook_worker publish payments.failed", "order_id", p.OrderID, "error", err)
 	}
+
+	observability.PaymentsTotal.WithLabelValues("failed").Inc()
 
 	w.logger.Info("webhook_worker payment failed",
 		"order_id", p.OrderID,
