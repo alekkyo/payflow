@@ -17,25 +17,71 @@ import (
 
 // PaymentHandler handles payment and refund endpoints.
 type PaymentHandler struct {
-	paymentStore payment.Store
-	orderStore   order.Store
-	producer     *queue.Producer
-	logger       *slog.Logger
+	paymentStore    payment.Store
+	orderStore      order.Store
+	producer        *queue.Producer
+	stripeTestMode  bool
+	logger          *slog.Logger
 }
 
 // NewPaymentHandler creates a PaymentHandler.
+// stripeTestMode should be true when the Stripe key starts with "sk_test_"; it
+// controls whether dashboard links point to the test or live Stripe Dashboard.
 func NewPaymentHandler(
 	paymentStore payment.Store,
 	orderStore order.Store,
 	producer *queue.Producer,
+	stripeTestMode bool,
 	logger *slog.Logger,
 ) *PaymentHandler {
 	return &PaymentHandler{
-		paymentStore: paymentStore,
-		orderStore:   orderStore,
-		producer:     producer,
-		logger:       logger,
+		paymentStore:   paymentStore,
+		orderStore:     orderStore,
+		producer:       producer,
+		stripeTestMode: stripeTestMode,
+		logger:         logger,
 	}
+}
+
+// GetByOrderID handles GET /orders/:id/payment.
+// Returns the payment for the given order, including a Stripe dashboard link.
+func (h *PaymentHandler) GetByOrderID(w http.ResponseWriter, r *http.Request) {
+	orderID, err := uuid.Parse(chi.URLParam(r, "id"))
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "invalid order id")
+		return
+	}
+
+	claims, _ := middleware.ClaimsFromContext(r.Context())
+
+	// Ownership check via the order.
+	o, err := h.orderStore.GetByID(r.Context(), orderID)
+	if err != nil {
+		if errors.Is(err, order.ErrNotFound) {
+			writeError(w, http.StatusNotFound, "order not found")
+			return
+		}
+		h.logger.Error("payment.GetByOrderID get order", "error", err)
+		writeError(w, http.StatusInternalServerError, "internal server error")
+		return
+	}
+	if claims.Role != "admin" && o.UserID != claims.ID {
+		writeError(w, http.StatusForbidden, "forbidden")
+		return
+	}
+
+	p, err := h.paymentStore.GetByOrderID(r.Context(), orderID)
+	if err != nil {
+		if errors.Is(err, payment.ErrNotFound) {
+			writeError(w, http.StatusNotFound, "payment not found")
+			return
+		}
+		h.logger.Error("payment.GetByOrderID", "error", err)
+		writeError(w, http.StatusInternalServerError, "internal server error")
+		return
+	}
+
+	writeJSON(w, http.StatusOK, h.paymentResponse(p))
 }
 
 // GetByID handles GET /payments/:id.
@@ -68,7 +114,7 @@ func (h *PaymentHandler) GetByID(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	writeJSON(w, http.StatusOK, p)
+	writeJSON(w, http.StatusOK, h.paymentResponse(p))
 }
 
 // CreateRefund handles POST /orders/:id/refunds.
@@ -214,4 +260,22 @@ func (h *PaymentHandler) ListRefunds(w http.ResponseWriter, r *http.Request) {
 		refunds = []*payment.Refund{}
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"refunds": refunds})
+}
+
+// paymentResponse wraps a Payment with a Stripe Dashboard URL for frontend linking.
+type paymentResponse struct {
+	*payment.Payment
+	StripeDashboardURL string `json:"stripe_dashboard_url,omitempty"`
+}
+
+func (h *PaymentHandler) paymentResponse(p *payment.Payment) paymentResponse {
+	resp := paymentResponse{Payment: p}
+	if p.StripePaymentID != "" {
+		base := "https://dashboard.stripe.com"
+		if h.stripeTestMode {
+			base += "/test"
+		}
+		resp.StripeDashboardURL = base + "/payments/" + p.StripePaymentID
+	}
+	return resp
 }

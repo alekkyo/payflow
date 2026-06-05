@@ -121,6 +121,7 @@ export type Payment = {
   id: string
   order_id: string
   stripe_payment_id: string
+  stripe_dashboard_url?: string
   amount_cents: number
   currency: string
   status: string

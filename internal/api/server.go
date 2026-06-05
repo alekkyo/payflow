@@ -60,7 +60,8 @@ func NewServer(
 	authHandler := handlers.NewAuthHandler(userStore, cfg.SessionDuration, logger)
 	productHandler := handlers.NewProductHandler(productStore, inventoryStore, productCache, logger)
 	orderHandler := handlers.NewOrderHandler(orderStore, productStore, inventoryStore, producer, rdb, logger)
-	paymentHandler := handlers.NewPaymentHandler(paymentStore, orderStore, producer, logger)
+	stripeTestMode := len(cfg.StripeAPIKey) > 8 && cfg.StripeAPIKey[:8] == "sk_test_"
+	paymentHandler := handlers.NewPaymentHandler(paymentStore, orderStore, producer, stripeTestMode, logger)
 	webhookHandler := handlers.NewWebhookHandler(provider, paymentStore, producer, logger)
 	adminHandler := handlers.NewAdminHandler(reconcileStore, producer, rdb, logger)
 
@@ -107,6 +108,7 @@ func NewServer(
 		r.Get("/orders/{id}", orderHandler.GetByID)
 		r.Post("/orders/{id}/cancel", orderHandler.Cancel)
 		r.Get("/orders/{id}/events/stream", orderHandler.StreamEvents)
+		r.Get("/orders/{id}/payment", paymentHandler.GetByOrderID)
 		r.Post("/orders/{id}/refunds", paymentHandler.CreateRefund)
 		r.Get("/orders/{id}/refunds", paymentHandler.ListRefunds)
 	})
