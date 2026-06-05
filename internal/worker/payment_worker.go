@@ -10,6 +10,9 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/redis/go-redis/v9"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
 
 	"github.com/alexkua/payflow/internal/domain/order"
 	"github.com/alexkua/payflow/internal/domain/payment"
@@ -103,6 +106,12 @@ func (w *PaymentWorker) handle(ctx context.Context, msg redis.XMessage) error {
 		return fmt.Errorf("payment_worker.handle parse order_id: %w", err)
 	}
 
+	// The consumer already extracted the parent trace from the stream message.
+	// This child span covers everything from lock acquisition through Stripe call.
+	ctx, span := otel.Tracer("payflow/worker").Start(ctx, "payment_worker.handle")
+	defer span.End()
+	span.SetAttributes(attribute.String("order_id", orderID.String()))
+
 	w.logger.Info("payment_worker processing", "order_id", orderID, "worker_id", w.workerID)
 
 	// Acquire a per-order lock to prevent two workers from charging the same order.
@@ -168,6 +177,8 @@ func (w *PaymentWorker) handle(ctx context.Context, msg redis.XMessage) error {
 
 	if err != nil {
 		// Stripe call failed — record the failure and trigger compensation.
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "stripe payment intent failed")
 		observability.PaymentsTotal.WithLabelValues("failed").Inc()
 		payload, _ := json.Marshal(map[string]string{"error": err.Error()})
 		_ = w.paymentStore.UpdateStatus(ctx, p.ID, payment.StatusFailed, "", err.Error(), payment.EventFailed, payload)

@@ -100,10 +100,15 @@ func NewServer(
 	// Orders (authenticated)
 	r.Group(func(r chi.Router) {
 		r.Use(middleware.Auth(userStore))
-		// Rate limit order creation: 5 requests per minute per authenticated user.
-		// Protects against runaway clients and makes the per-user cost of spam expensive.
-		r.With(middleware.RateLimit(rdb, "orders:create", 5, time.Minute, middleware.UserIDFromClaims)).
-			Post("/orders", orderHandler.Create)
+		// Order creation is guarded by two independent checks:
+		//   1. Rate limit — per user, 5 req/min. Stops individual clients spamming.
+		//   2. Backpressure — system-wide. If inventory workers are >500 messages
+		//      behind, reject new orders until they catch up. This prevents a burst
+		//      from snowballing into an unbounded queue and degraded fulfilment SLA.
+		r.With(
+			middleware.RateLimit(rdb, "orders:create", 5, time.Minute, middleware.UserIDFromClaims),
+			middleware.Backpressure(rdb, queue.StreamOrdersCreated, 500),
+		).Post("/orders", orderHandler.Create)
 		r.Get("/orders", orderHandler.List)
 		r.Get("/orders/{id}", orderHandler.GetByID)
 		r.Post("/orders/{id}/cancel", orderHandler.Cancel)

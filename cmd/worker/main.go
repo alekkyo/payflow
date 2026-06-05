@@ -60,7 +60,10 @@ func main() {
 	reconcileStore  := pgstore.NewReconciliationStore(pool)
 	invSvc          := product.NewInventoryService(inventoryStore)
 	locker          := rdstore.NewLocker(rdb)
-	stripeProvider  := stripeclient.NewClient(cfg.StripeAPIKey, cfg.StripeWebhookSecret)
+	stripeProvider  := stripeclient.NewCircuitBreakerProvider(
+		stripeclient.NewClient(cfg.StripeAPIKey, cfg.StripeWebhookSecret),
+		logger,
+	)
 
 	var wg sync.WaitGroup
 

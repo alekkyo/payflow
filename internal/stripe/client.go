@@ -14,6 +14,9 @@ import (
 	"github.com/stripe/stripe-go/v81/paymentintent"
 	"github.com/stripe/stripe-go/v81/refund"
 	stripewebhook "github.com/stripe/stripe-go/v81/webhook"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
 
 	"github.com/alexkua/payflow/internal/domain/payment"
 )
@@ -35,6 +38,14 @@ func NewClient(apiKey, webhookSecret string) *Client {
 // create the intent (unconfirmed) and return the ClientSecret to the frontend,
 // where Stripe.js handles card collection and confirmation.
 func (c *Client) CreatePaymentIntent(ctx context.Context, req payment.PaymentIntentRequest) (*payment.PaymentIntentResult, error) {
+	ctx, span := otel.Tracer("payflow/stripe").Start(ctx, "stripe.CreatePaymentIntent")
+	defer span.End()
+	span.SetAttributes(
+		attribute.String("order_id", req.OrderID.String()),
+		attribute.Int("amount_cents", req.AmountCents),
+		attribute.String("currency", req.Currency),
+	)
+
 	params := &stripelib.PaymentIntentParams{
 		Amount:        stripelib.Int64(int64(req.AmountCents)),
 		Currency:      stripelib.String(req.Currency),
@@ -55,8 +66,11 @@ func (c *Client) CreatePaymentIntent(ctx context.Context, req payment.PaymentInt
 
 	pi, err := paymentintent.New(params)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return nil, fmt.Errorf("stripe.CreatePaymentIntent: %w", err)
 	}
+	span.SetAttributes(attribute.String("stripe_payment_id", pi.ID))
 
 	return &payment.PaymentIntentResult{
 		StripeID:     pi.ID,
@@ -67,6 +81,13 @@ func (c *Client) CreatePaymentIntent(ctx context.Context, req payment.PaymentInt
 
 // CreateRefund issues a full or partial refund against a Stripe PaymentIntent.
 func (c *Client) CreateRefund(ctx context.Context, req payment.RefundRequest) (*payment.RefundResult, error) {
+	ctx, span := otel.Tracer("payflow/stripe").Start(ctx, "stripe.CreateRefund")
+	defer span.End()
+	span.SetAttributes(
+		attribute.String("stripe_payment_id", req.StripePaymentID),
+		attribute.Int("amount_cents", req.AmountCents),
+	)
+
 	params := &stripelib.RefundParams{
 		PaymentIntent: stripelib.String(req.StripePaymentID),
 		Amount:        stripelib.Int64(int64(req.AmountCents)),
@@ -75,8 +96,11 @@ func (c *Client) CreateRefund(ctx context.Context, req payment.RefundRequest) (*
 
 	r, err := refund.New(params)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return nil, fmt.Errorf("stripe.CreateRefund: %w", err)
 	}
+	span.SetAttributes(attribute.String("stripe_refund_id", r.ID))
 
 	return &payment.RefundResult{
 		StripeRefundID: r.ID,
