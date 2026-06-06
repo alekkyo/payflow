@@ -1,7 +1,7 @@
 # ── Stage 1: build ─────────────────────────────────────────────────────────────
 # Uses the full Go toolchain image. This stage is discarded after build;
 # none of its size makes it into the final image.
-FROM golang:1.24-alpine AS builder
+FROM golang:1.26-alpine AS builder
 
 WORKDIR /app
 
