@@ -1,9 +1,13 @@
 # PayFlow — Distributed Payment Processing Platform
 
-A production-grade e-commerce and payments backend built in Go as a capstone project for learning distributed systems and payments engineering. Built over 6 weeks by a senior engineer transitioning from PHP/Laravel to Go.
+A production-grade e-commerce and payments backend built in Go as a capstone project for learning distributed systems and payments engineering. Built over 2 weeks by a senior engineer with no prior Go experience, transitioning from PHP/Laravel.
 
-**Live demo:** [payflow.alexkua.com](https://payflow.alexkua.com)  
-**Demo credentials:** Admin `admin@payflow.dev` / `demo-admin-123` · Customer `customer@payflow.dev` / `demo-customer-123`
+**Live demo:** [payflow.alexkua.com](https://payflow.alexkua.com)
+
+| Role | Email | Password |
+|---|---|---|
+| Admin | `admin@payflow.dev` | `demo-admin-123` |
+| Customer | `customer@payflow.dev` | `demo-customer-123` |
 
 ---
 
@@ -99,7 +103,7 @@ Before creating a Stripe PaymentIntent, the payment worker acquires a per-order 
 
 | Layer | Technology |
 |---|---|
-| API + Workers | Go 1.24 |
+| API + Workers | Go 1.26 |
 | Database | PostgreSQL 16 |
 | Cache / Queue / Locks | Redis 7 (Streams, Pub/Sub, SET NX) |
 | Payment provider | Stripe (test mode) |
@@ -169,7 +173,7 @@ payflow/
 
 ## Local development
 
-**Prerequisites:** Go 1.24+, Docker, Node.js 20+
+**Prerequisites:** Go 1.26+, Docker, Node.js 20+
 
 ```bash
 # 1. Start infrastructure
@@ -213,8 +217,10 @@ Tests use inline mock structs implementing domain interfaces — no external moc
 
 ## Background
 
-This project was built in 6 weeks as a capstone for learning Go and distributed systems. I am a senior engineer with 10+ years in PHP/Laravel, Vue.js, and React, targeting a position at a payments or fintech company. The goal was to demonstrate that production-grade Go and payments engineering concepts could be learned and applied quickly.
+This project was built in 2 weeks as a capstone for learning Go and distributed systems. I am a senior engineer with 10+ years in PHP/Laravel, Vue.js, and React — with **zero prior Go experience** before starting this project.
 
-Topics progressively mastered before starting this project: interfaces, goroutines, channels, context, pgx, Redis, worker pools, and graceful shutdown. This codebase is the first large Go project.
+Most of the implementation was done with the assistance of Claude Code (Anthropic's AI coding tool). The goal was not to write every line manually, but to learn how to work with Go idioms, understand distributed systems design decisions, and build something that would be meaningful to a payments or fintech company interviewer. Every architectural choice — saga pattern, idempotency, optimistic locking, circuit breaking, reconciliation — was studied, questioned, and understood rather than blindly generated.
+
+This is the first large Go codebase I have shipped.
 
 See [ARCHITECTURE.md](./ARCHITECTURE.md) for the full system design and [DEPLOY.md](./DEPLOY.md) for deployment instructions.
