@@ -20,7 +20,7 @@ PayFlow is a full-stack order and payment processing system. A customer browses 
 3. **Webhook received** — Stripe confirms payment; worker advances order to confirmed → fulfilled
 4. **Real-time updates** — browser receives each state transition via Server-Sent Events
 
-The admin dashboard shows queue depths, dead-letter messages, and daily reconciliation runs comparing local payments against Stripe's records.
+The admin dashboard shows queue depths, dead-letter messages, daily reconciliation runs, and an AI-generated payment insights panel powered by Claude.
 
 ---
 
@@ -71,6 +71,18 @@ The `inventory` table has a `version` column. Reserving stock uses `UPDATE ... W
 ### Webhook deduplication
 Stripe sends webhooks at least once. After validating the signature with `stripe.ConstructEvent`, the handler checks `processed_webhook_events` for the Stripe event ID. If found: return 200 immediately. If new: insert the ID and enqueue the event to Redis Streams for async processing. The API responds in <5ms; the webhook worker does the heavy lifting.
 
+### AI payment insights
+`GET /admin/insights` aggregates the last 7 days of payment data from PostgreSQL (volume, success rate, failure rate, refund rate, average transaction size) and the most recent reconciliation run results, then sends a structured prompt to Claude (`claude-sonnet-5`). Claude returns a plain-English narrative and a list of anomalies (e.g. velocity spikes, duplicate IP clusters). Results are cached in Redis for 30 minutes; pass `?refresh=true` to bypass the cache and call Claude immediately. The endpoint is admin-only and degrades gracefully if `ANTHROPIC_API_KEY` is absent.
+
+### Frontend design system (Organic)
+The React frontend uses a custom design system called **Organic** built on Tailwind CSS v3. Design tokens are defined in `tailwind.config.js`:
+- **Colors:** terracotta accent (`#c67139`), sage accent (`#7a8a5e`), warm cream background (`#f5ead8`)
+- **Typography:** Caprasimo (headings) + Figtree (body), loaded via Google Fonts
+- **Radii/shadows:** three-step scale (`pf-sm` 8px → `pf-md` 16px → `pf-lg` 28px) with ink-tinted shadows
+- **Animations:** `pf-pop`, `pf-pulse`, `pf-spin`, `pf-shimmer`, `pf-fade` — defined at CSS root level so inline `style={{ animation }}` references work regardless of Tailwind's `@layer` wrapping
+
+All color, font, and dimension values that proved unreliable as Tailwind arbitrary variants are applied via explicit inline styles.
+
 ### Daily reconciliation
 A `reconcile_worker` compares every local payment record against Stripe's API for the same day. Discrepancies (missing on either side, amount mismatch, status drift from a missed webhook) are written to `reconciliation_discrepancies` and surfaced in the admin dashboard. This is a compliance requirement in real payment systems.
 
@@ -107,10 +119,12 @@ Before creating a Stripe PaymentIntent, the payment worker acquires a per-order 
 | Database | PostgreSQL 16 |
 | Cache / Queue / Locks | Redis 7 (Streams, Pub/Sub, SET NX) |
 | Payment provider | Stripe (test mode) |
-| Frontend | React 19, TanStack Query, React Router v7, Tailwind CSS |
+| Frontend | React 19, TanStack Query, React Router v7, Tailwind CSS v3 |
+| UI design system | Organic — Caprasimo + Figtree fonts, terracotta/sage palette |
+| AI insights | Anthropic Claude (`claude-sonnet-5`), cached in Redis |
 | Observability | OpenTelemetry traces, Prometheus metrics, Grafana dashboards |
 | Containerisation | Docker + Docker Compose |
-| Deployment | DigitalOcean droplet, Nginx, Let's Encrypt |
+| Deployment | Nginx, Let's Encrypt SSL, Docker Compose |
 
 ---
 
@@ -157,6 +171,7 @@ payflow/
 │   ├── store/
 │   │   ├── postgres/    # pgx/v5 implementations of all Store interfaces
 │   │   └── redis/       # Product cache, distributed lock
+│   ├── insights/        # AI payment insights (Claude API + Redis cache)
 │   ├── queue/           # Redis Streams producer/consumer
 │   ├── stripe/          # Stripe client wrapper
 │   └── observability/   # slog setup, OTel tracing, Prometheus metrics

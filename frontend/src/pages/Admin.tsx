@@ -306,11 +306,11 @@ export function Admin() {
                         ([k]) => k !== 'error' && k !== 'source_stream',
                       )
                       return (
-                        <div key={msg.id} className="pb-3" style={{ borderBottom: '1px solid rgba(32,30,29,.16)' }}>
+                        <div key={msg.id} className="pb-3" style={{ borderBottom: '1px solid rgba(32,30,29,.16)', overflow: 'hidden', minWidth: 0 }}>
                           {/* ID + stream row */}
-                          <div className="flex items-center gap-2 mb-1.5 min-w-0">
+                          <div className="flex items-center gap-2 mb-1.5 overflow-hidden">
                             <span
-                              className="text-[12px] shrink-0"
+                              className="text-[12px] shrink-0 truncate"
                               style={{ fontFamily: 'ui-monospace, monospace', color: 'rgba(32,30,29,.55)' }}
                             >
                               {msg.id}
@@ -324,10 +324,10 @@ export function Admin() {
                               </span>
                             )}
                           </div>
-                          {/* Error — truncated to 2 lines, full text on hover */}
+                          {/* Error — clamped to 2 lines, full text on hover */}
                           {error && (
-                            <p
-                              className="text-[12px] m-0 mb-2"
+                            <div
+                              className="text-[12px] mb-2"
                               title={error}
                               style={{
                                 fontFamily: 'ui-monospace, monospace',
@@ -336,15 +336,15 @@ export function Admin() {
                                 WebkitLineClamp: 2,
                                 WebkitBoxOrient: 'vertical',
                                 overflow: 'hidden',
+                                wordBreak: 'break-all',
                               }}
                             >
                               {error}
-                            </p>
+                            </div>
                           )}
-                          {/* Remaining fields — short values inline, long values clamped */}
+                          {/* Remaining fields — short values inline, long values on own row clamped */}
                           {extras.length > 0 && (
                             <div className="flex flex-col gap-0.5">
-                              {/* Short fields: one flex-wrap row */}
                               {(() => {
                                 const short = extras.filter(([, v]) => v.length < 80)
                                 const long  = extras.filter(([, v]) => v.length >= 80)
@@ -353,16 +353,16 @@ export function Admin() {
                                     {short.length > 0 && (
                                       <div className="flex flex-wrap gap-x-4 gap-y-0.5">
                                         {short.map(([k, v]) => (
-                                          <span key={k} className="text-[11px]" style={{ color: 'rgba(32,30,29,.55)' }}>
+                                          <span key={k} className="text-[11px]" style={{ color: 'rgba(32,30,29,.55)', wordBreak: 'break-all' }}>
                                             {k}: <span style={{ fontFamily: 'ui-monospace, monospace' }}>{v}</span>
                                           </span>
                                         ))}
                                       </div>
                                     )}
                                     {long.map(([k, v]) => (
-                                      <div key={k} className="text-[11px] mt-0.5" style={{ color: 'rgba(32,30,29,.55)' }}>
-                                        <span className="mr-1">{k}:</span>
-                                        <span
+                                      <div key={k} style={{ marginTop: 3, color: 'rgba(32,30,29,.55)', fontSize: 11 }}>
+                                        <div style={{ marginBottom: 1 }}>{k}:</div>
+                                        <div
                                           title={v}
                                           style={{
                                             fontFamily: 'ui-monospace, monospace',
@@ -374,7 +374,7 @@ export function Admin() {
                                           }}
                                         >
                                           {v}
-                                        </span>
+                                        </div>
                                       </div>
                                     ))}
                                   </>

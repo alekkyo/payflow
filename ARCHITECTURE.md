@@ -50,15 +50,17 @@ This project will be public on GitHub and is the primary technical artifact for 
 
 | Technology | Purpose |
 |---|---|
-| **Go 1.24** | Primary language — API service and worker service |
+| **Go 1.26** | Primary language — API service and worker service |
 | **PostgreSQL 16** | Primary data store — orders, payments, products, audit log |
 | **Redis 7** | Caching, distributed locks, rate limiting, Redis Streams queue |
 | **Stripe** | Payment provider (test mode) |
+| **Anthropic Claude** | AI payment insights (`claude-sonnet-5`, cached 30 min in Redis) |
 | **Docker + Docker Compose** | Local development environment |
 | **React 19** | Frontend — product catalog, checkout, order tracking, admin |
+| **Tailwind CSS v3** | Utility-first styling with custom Organic design tokens |
 | **OpenTelemetry** | Distributed tracing |
 | **Prometheus + Grafana** | Metrics and dashboards |
-| **AWS ECS Fargate** | Deployment target (later phase) |
+| **Nginx + Let's Encrypt** | Production deployment — reverse proxy with SSL termination |
 
 ---
 
@@ -84,6 +86,7 @@ payflow/
 │   ├── store/            # Database layer
 │   │   ├── postgres/
 │   │   └── redis/
+│   ├── insights/         # AI payment insights — Claude API + Redis cache
 │   ├── queue/            # Redis Streams producer/consumer
 │   ├── worker/           # Worker implementations
 │   │   ├── payment_worker.go
@@ -99,11 +102,13 @@ payflow/
 │   ├── 003_create_orders.sql
 │   ├── 004_create_payments.sql
 │   └── 005_create_reconciliation.sql
-├── frontend/             # React 19 application
+├── frontend/             # React 19 application (Organic design system)
 │   ├── src/
-│   │   ├── pages/
-│   │   ├── components/
-│   │   └── hooks/
+│   │   ├── pages/        # Login, ProductCatalog, Cart, OrderList, OrderDetail, Admin
+│   │   ├── components/   # Navbar, OrderStatusTracker
+│   │   ├── hooks/        # useAuth, useCart, useOrderStream
+│   │   └── api/          # TanStack Query client
+│   ├── tailwind.config.js  # Organic design tokens (colors, fonts, radii, shadows)
 │   └── package.json
 ├── docker-compose.yml    # PostgreSQL, Redis, Stripe CLI, Grafana
 ├── docker-compose.prod.yml
@@ -698,6 +703,77 @@ type PaymentProvider interface {
 ```go
 // Test the saga state machine, idempotency, inventory locking
 ```
+
+---
+
+## AI Payment Insights
+
+`GET /admin/insights` (admin-only) generates a natural language summary of the last 7 days of payment activity using Claude.
+
+### Flow
+1. Check Redis for cached result (`insights:summary:7d`, TTL 30 min). Return immediately on hit.
+2. Query `payment_store.ListPaymentsByDateRange` for the last 7 days.
+3. Aggregate: total volume, transaction count, success/failure/refund rates, average transaction size.
+4. Query the last 3 reconciliation runs for mismatch counts.
+5. Build a structured prompt containing all stats and send to `claude-sonnet-5`.
+6. Claude returns a plain-English paragraph + a list of anomalies (velocity spikes, duplicate IP clusters, etc.).
+7. Cache the full `Summary` struct in Redis. Return to client.
+
+Pass `?refresh=true` to bypass the cache and force a new Claude call immediately.
+
+### Response shape
+```json
+{
+  "generated_at": "2026-07-15T14:30:00Z",
+  "period": "last_7_days",
+  "cached": false,
+  "stats": {
+    "total_transactions": 230,
+    "total_volume_cents": 4520000,
+    "success_rate": 0.942,
+    "failure_rate": 0.041,
+    "refund_rate": 0.017,
+    "avg_transaction_cents": 19652
+  },
+  "anomalies": ["3 failed payments from the same IP in under 10 minutes"],
+  "ai_summary": "This week you processed $45,200 across 230 transactions…"
+}
+```
+
+The service degrades gracefully: if `ANTHROPIC_API_KEY` is absent the endpoint returns a descriptive error rather than panicking.
+
+---
+
+## Frontend Design System (Organic)
+
+The React frontend uses a custom design system built on Tailwind CSS v3 with the following tokens defined in `tailwind.config.js`:
+
+| Token | Value |
+|---|---|
+| `pf.bg` | `#f5ead8` — warm cream page background |
+| `pf.surface` | `#ebddc5` — card / input surface |
+| `pf.text` | `#201e1d` — primary ink |
+| `pf.accent` | `#c67139` — terracotta (CTAs, active links, highlights) |
+| `pf.sage` | `#7a8a5e` — secondary green accent |
+| `pf-sm` radius | `8px` |
+| `pf-md` radius | `16px` |
+| `pf-lg` radius | `28px` |
+| Heading font | Caprasimo (Google Fonts) |
+| Body font | Figtree (Google Fonts) |
+
+### Animations
+Five keyframes are declared at CSS root level (not inside `@layer`) so they can be referenced from inline `style={{ animation }}` props without Tailwind's layer system interfering:
+
+| Name | Purpose |
+|---|---|
+| `pf-pop` | Button add-to-cart confirmation bounce |
+| `pf-pulse` | Pulsing ring on active SSE-tracked order step |
+| `pf-spin` | Spinner on SSE connecting state |
+| `pf-shimmer` | Skeleton loading shimmer (`.pf-shim` utility class) |
+| `pf-fade` | Page / section fade-in on mount |
+
+### Implementation note
+Complex Tailwind variants (`aria-[current=page]:text-pf-accent`) and arbitrary pixel values (`w-[27px]`) proved unreliable in this codebase's JIT setup. All critical color, font, and dimension values are applied via explicit inline styles. Tailwind is used for layout utilities (flexbox, grid, padding, margin) only.
 
 ---
 
