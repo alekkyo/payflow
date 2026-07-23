@@ -145,6 +145,9 @@ func (s *OrderStore) ListByUserID(ctx context.Context, userID uuid.UUID) ([]*ord
 		); err != nil {
 			return nil, fmt.Errorf("order_store.ListByUserID scan: %w", err)
 		}
+		if err := s.loadItems(ctx, o); err != nil {
+			return nil, err
+		}
 		orders = append(orders, o)
 	}
 	if err := rows.Err(); err != nil {

@@ -341,14 +341,45 @@ export function Admin() {
                               {error}
                             </p>
                           )}
-                          {/* Remaining fields */}
+                          {/* Remaining fields — short values inline, long values clamped */}
                           {extras.length > 0 && (
-                            <div className="flex flex-wrap gap-x-4 gap-y-0.5">
-                              {extras.map(([k, v]) => (
-                                <span key={k} className="text-[11px]" style={{ color: 'rgba(32,30,29,.55)' }}>
-                                  {k}: <span style={{ fontFamily: 'ui-monospace, monospace' }}>{v}</span>
-                                </span>
-                              ))}
+                            <div className="flex flex-col gap-0.5">
+                              {/* Short fields: one flex-wrap row */}
+                              {(() => {
+                                const short = extras.filter(([, v]) => v.length < 80)
+                                const long  = extras.filter(([, v]) => v.length >= 80)
+                                return (
+                                  <>
+                                    {short.length > 0 && (
+                                      <div className="flex flex-wrap gap-x-4 gap-y-0.5">
+                                        {short.map(([k, v]) => (
+                                          <span key={k} className="text-[11px]" style={{ color: 'rgba(32,30,29,.55)' }}>
+                                            {k}: <span style={{ fontFamily: 'ui-monospace, monospace' }}>{v}</span>
+                                          </span>
+                                        ))}
+                                      </div>
+                                    )}
+                                    {long.map(([k, v]) => (
+                                      <div key={k} className="text-[11px] mt-0.5" style={{ color: 'rgba(32,30,29,.55)' }}>
+                                        <span className="mr-1">{k}:</span>
+                                        <span
+                                          title={v}
+                                          style={{
+                                            fontFamily: 'ui-monospace, monospace',
+                                            display: '-webkit-box',
+                                            WebkitLineClamp: 2,
+                                            WebkitBoxOrient: 'vertical',
+                                            overflow: 'hidden',
+                                            wordBreak: 'break-all',
+                                          }}
+                                        >
+                                          {v}
+                                        </span>
+                                      </div>
+                                    ))}
+                                  </>
+                                )
+                              })()}
                             </div>
                           )}
                         </div>
