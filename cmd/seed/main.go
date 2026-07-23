@@ -6,9 +6,13 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
+	"math/rand"
 	"os"
+	"time"
 
+	"github.com/google/uuid"
 	"golang.org/x/crypto/bcrypt"
 
 	"github.com/alexkua/payflow/internal/config"
@@ -170,6 +174,145 @@ func main() {
 			slog.Info("seeded product", "name", p.Name, "inventory", item.inventory)
 		}
 		slog.Info("products seeded", "count", len(catalog))
+	}
+
+	// ── Payments ───────────────────────────────────────────────────────────────
+
+	var paymentCount int
+	if err := pool.QueryRow(ctx, `SELECT COUNT(*) FROM payments`).Scan(&paymentCount); err != nil {
+		slog.Error("count payments", "error", err)
+		os.Exit(1)
+	}
+	if paymentCount > 0 {
+		slog.Info("payments already seeded, skipping", "existing", paymentCount)
+	} else {
+		var customerID uuid.UUID
+		if err := pool.QueryRow(ctx, `SELECT id FROM users WHERE email = $1`, customerEmail).Scan(&customerID); err != nil {
+			slog.Error("fetch customer user", "error", err)
+			os.Exit(1)
+		}
+
+		var productIDs []uuid.UUID
+		rows, err := pool.Query(ctx, `SELECT id FROM products WHERE active = true LIMIT 6`)
+		if err != nil {
+			slog.Error("fetch products", "error", err)
+			os.Exit(1)
+		}
+		for rows.Next() {
+			var id uuid.UUID
+			if err := rows.Scan(&id); err != nil {
+				slog.Error("scan product id", "error", err)
+				os.Exit(1)
+			}
+			productIDs = append(productIDs, id)
+		}
+		rows.Close()
+
+		now := time.Now().UTC()
+
+		prices := []int{19999, 12999, 8999, 7999, 4999, 2999, 1499}
+		failureReasons := []string{"insufficient_funds", "insufficient_funds", "insufficient_funds", "card_declined", "do_not_honor"}
+
+		type paymentSeed struct {
+			amountCents   int
+			status        string
+			failureReason string
+			daysAgo       int
+			hoursOffset   int
+		}
+
+		var seeds []paymentSeed
+		rng := rand.New(rand.NewSource(42))
+
+		for i := range 200 {
+			day := rng.Intn(7)
+			hour := rng.Intn(22)
+			price := prices[rng.Intn(len(prices))]
+
+			// ~82% captured, ~13% failed, ~5% refunded
+			roll := rng.Intn(100)
+			var status, reason string
+			switch {
+			case roll < 82:
+				status = "captured"
+			case roll < 95:
+				status = "failed"
+				reason = failureReasons[rng.Intn(len(failureReasons))]
+			default:
+				status = "refunded"
+			}
+
+			_ = i
+			seeds = append(seeds, paymentSeed{price, status, reason, day, hour})
+		}
+
+		for i, s := range seeds {
+			createdAt := now.AddDate(0, 0, -s.daysAgo).Add(-time.Duration(s.hoursOffset) * time.Hour)
+
+			orderStatus := "fulfilled"
+			if s.status == "failed" {
+				orderStatus = "payment_failed"
+			} else if s.status == "refunded" {
+				orderStatus = "refunded"
+			}
+
+			var orderID uuid.UUID
+			orderIK := fmt.Sprintf("seed-order-%d", i)
+			err := pool.QueryRow(ctx, `
+				INSERT INTO orders (user_id, status, total_cents, currency, idempotency_key, created_at, updated_at)
+				VALUES ($1, $2, $3, 'usd', $4, $5, $5)
+				RETURNING id`,
+				customerID, orderStatus, s.amountCents, orderIK, createdAt,
+			).Scan(&orderID)
+			if err != nil {
+				slog.Error("insert order", "i", i, "error", err)
+				os.Exit(1)
+			}
+
+			if len(productIDs) > 0 {
+				pid := productIDs[i%len(productIDs)]
+				if _, err := pool.Exec(ctx, `
+					INSERT INTO order_items (order_id, product_id, quantity, price_cents, created_at)
+					VALUES ($1, $2, 1, $3, $4)`,
+					orderID, pid, s.amountCents, createdAt,
+				); err != nil {
+					slog.Error("insert order item", "i", i, "error", err)
+					os.Exit(1)
+				}
+			}
+
+			paymentIK := fmt.Sprintf("seed-payment-%d", i)
+			stripeID := fmt.Sprintf("pi_seed_%d", i)
+			var failureReason *string
+			if s.failureReason != "" {
+				failureReason = &s.failureReason
+			}
+
+			var paymentID uuid.UUID
+			err = pool.QueryRow(ctx, `
+				INSERT INTO payments (order_id, stripe_payment_id, amount_cents, currency, status, idempotency_key, failure_reason, created_at, updated_at)
+				VALUES ($1, $2, $3, 'usd', $4, $5, $6, $7, $7)
+				RETURNING id`,
+				orderID, stripeID, s.amountCents, s.status, paymentIK, failureReason, createdAt,
+			).Scan(&paymentID)
+			if err != nil {
+				slog.Error("insert payment", "i", i, "error", err)
+				os.Exit(1)
+			}
+
+			if s.status == "refunded" {
+				refundIK := fmt.Sprintf("seed-refund-%d", i)
+				if _, err := pool.Exec(ctx, `
+					INSERT INTO refunds (payment_id, amount_cents, status, idempotency_key, created_at)
+					VALUES ($1, $2, 'succeeded', $3, $4)`,
+					paymentID, s.amountCents, refundIK, createdAt.Add(2*time.Hour),
+				); err != nil {
+					slog.Error("insert refund", "i", i, "error", err)
+					os.Exit(1)
+				}
+			}
+		}
+		slog.Info("payments seeded", "count", len(seeds))
 	}
 
 	slog.Info("seeding complete")

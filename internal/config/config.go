@@ -20,6 +20,7 @@ type Config struct {
 	StripeWebhookSecret string
 	AllowedOrigins      []string // CORS allowed origins, e.g. ["http://localhost:5173"]
 	OTLPEndpoint        string   // OpenTelemetry collector endpoint, e.g. "localhost:4318"
+	AnthropicAPIKey     string   // Anthropic API key for AI-powered payment insights
 }
 
 // Load reads configuration from environment variables and returns a Config.
@@ -65,5 +66,6 @@ func Load() (*Config, error) {
 		StripeWebhookSecret: os.Getenv("STRIPE_WEBHOOK_SECRET"),
 		AllowedOrigins:      allowedOrigins,
 		OTLPEndpoint:        os.Getenv("OTEL_EXPORTER_OTLP_ENDPOINT"),
+		AnthropicAPIKey:     os.Getenv("ANTHROPIC_API_KEY"),
 	}, nil
 }

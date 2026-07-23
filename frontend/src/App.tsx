@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import { Navbar } from './components/Navbar'
 import { Login } from './pages/Login'
 import { ProductCatalog } from './pages/ProductCatalog'
@@ -22,9 +22,10 @@ function ProtectedRoute({ children, adminOnly = false }: { children: ReactNode; 
 // AppRoutes is a child of AuthProvider so ProtectedRoute can call useAuth().
 function AppRoutes() {
   const { user } = useAuth()
+  const { pathname } = useLocation()
   return (
     <>
-      <Navbar />
+      {pathname !== '/login' && <Navbar />}
       <Routes>
         <Route path="/" element={<ProductCatalog />} />
         <Route path="/cart" element={<Cart />} />

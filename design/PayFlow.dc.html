@@ -1,0 +1,638 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="organic.css">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  body { margin: 0; background: var(--color-bg); }
+  a { text-decoration: none; }
+  @keyframes pf-pop { 0%{transform:scale(1)} 40%{transform:scale(1.18)} 100%{transform:scale(1)} }
+  @keyframes pf-pulse { 0%{box-shadow:0 0 0 0 color-mix(in srgb, var(--color-accent) 45%, transparent)} 70%{box-shadow:0 0 0 9px transparent} 100%{box-shadow:0 0 0 0 transparent} }
+  @keyframes pf-spin { to{transform:rotate(360deg)} }
+  @keyframes pf-shimmer { 0%{background-position:200% 0} 100%{background-position:-200% 0} }
+  @keyframes pf-fade { from{opacity:0;transform:translateY(6px)} to{opacity:1;transform:none} }
+  .pf-view { animation: pf-fade .28s ease; }
+  .pf-shim { background:linear-gradient(90deg,var(--color-neutral-300) 25%,var(--color-neutral-200) 50%,var(--color-neutral-300) 75%); background-size:200% 100%; animation:pf-shimmer 1.3s linear infinite; border-radius:var(--radius-md); }
+</style>
+</helmet>
+
+<div style="min-height:100vh;display:flex;flex-direction:column">
+  <sc-if value="{{ showNav }}">
+  <nav class="nav" style="position:sticky;top:0;z-index:20;padding:16px 24px;background:color-mix(in srgb, var(--color-bg) 88%, transparent);backdrop-filter:blur(10px);border-bottom:1px solid var(--color-divider);flex-wrap:wrap;gap:12px 20px">
+    <a href="#" onClick="{{ goShop }}" class="nav-brand" style="display:inline-flex;align-items:center;gap:10px;cursor:pointer">
+      <span style="width:27px;height:27px;border-radius:999px;background:var(--color-accent);color:var(--color-bg);display:inline-flex;align-items:center;justify-content:center;font-family:var(--font-heading);font-size:16px;box-shadow:inset 0 0 0 2px color-mix(in srgb, var(--color-bg) 55%, transparent)">$</span>PayFlow
+    </a>
+    <a href="#" onClick="{{ goShop }}" aria-current="{{ shopCur }}" style="cursor:pointer">Shop</a>
+    <a href="#" onClick="{{ goOrders }}" aria-current="{{ ordersCur }}" style="cursor:pointer">Orders</a>
+    <a href="#" onClick="{{ goAdmin }}" aria-current="{{ adminCur }}" style="cursor:pointer">Admin</a>
+    <a href="https://github.com/alekkyo/payflow" target="_blank" rel="noopener" class="btn btn-secondary btn-icon" title="View source on GitHub" aria-label="View source on GitHub" style="border:1px solid var(--color-divider)">
+      <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor" aria-hidden="true"><path d="M12 .5C5.4.5 0 5.9 0 12.6c0 5.3 3.4 9.8 8.2 11.4.6.1.8-.3.8-.6v-2c-3.3.7-4-1.6-4-1.6-.5-1.4-1.3-1.8-1.3-1.8-1.1-.7.1-.7.1-.7 1.2.1 1.8 1.2 1.8 1.2 1.1 1.8 2.8 1.3 3.5 1 .1-.8.4-1.3.8-1.6-2.7-.3-5.5-1.3-5.5-5.9 0-1.3.5-2.4 1.2-3.2-.1-.4-.5-1.6.2-3.3 0 0 1-.3 3.3 1.2a11.5 11.5 0 0 1 6 0C18 4.5 19 4.8 19 4.8c.7 1.7.2 2.9.1 3.3.8.8 1.2 1.9 1.2 3.2 0 4.6-2.8 5.6-5.5 5.9.4.4.8 1.1.8 2.3v3.3c0 .3.2.7.8.6A12 12 0 0 0 24 12.6C24 5.9 18.6.5 12 .5z"/></svg>
+    </a>
+    <button class="btn btn-secondary" onClick="{{ goCart }}" style="display:inline-flex;align-items:center;gap:8px">
+      <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2.75" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><path d="M3 6h18"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>
+      Cart
+      <span style="display:inline-flex;align-items:center;justify-content:center;min-width:20px;height:20px;padding:0 5px;background:var(--color-accent);color:var(--color-bg);border-radius:999px;font-size:11px;font-family:var(--font-heading)">{{ cartCount }}</span>
+    </button>
+    <button class="btn btn-ghost" onClick="{{ signOut }}" style="display:inline-flex;align-items:center;gap:6px" title="Sign out"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.75" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="m16 17 5-5-5-5"/><path d="M21 12H9"/></svg>Sign out</button>
+  </nav>
+  </sc-if>
+
+  <main style="flex:1;width:100%;max-width:1180px;margin:0 auto;padding:0 24px 80px;box-sizing:border-box">
+
+    <!-- ═══════════════ LOGIN ═══════════════ -->
+    <sc-if value="{{ isLogin }}">
+    <section class="pf-view" data-screen-label="Login" style="min-height:100vh;display:flex;align-items:center;justify-content:center;padding:48px 0">
+      <div style="width:100%;max-width:880px;display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));background:var(--color-surface);border-radius:var(--radius-lg);overflow:hidden;box-shadow:var(--shadow-lg)">
+        <div style="background:var(--color-accent-2-600);color:var(--color-bg);padding:42px 38px;display:flex;flex-direction:column;gap:16px">
+          <div style="display:inline-flex;align-items:center;gap:10px;font-family:var(--font-heading);font-size:22px"><span style="width:29px;height:29px;border-radius:999px;background:var(--color-bg);color:var(--color-accent-2-700);display:inline-flex;align-items:center;justify-content:center;font-size:18px;box-shadow:inset 0 0 0 2px color-mix(in srgb, var(--color-accent-2-700) 40%, transparent)">$</span>PayFlow</div>
+          <h2 style="font-size:30px;margin:10px 0 0;color:var(--color-bg);line-height:1.1">Payments that just work.</h2>
+          <p style="font-size:14px;opacity:.9;margin:0">A demo storefront on a production-grade Go saga — idempotent, reconciled and fully observable.</p>
+          <div style="display:flex;flex-direction:column;gap:13px;margin-top:auto;padding-top:22px">
+            <div style="display:flex;align-items:center;gap:10px;font-size:13.5px"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.75" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>Distributed saga orchestration</div>
+            <div style="display:flex;align-items:center;gap:10px;font-size:13.5px"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.75" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>Idempotent payments & webhooks</div>
+            <div style="display:flex;align-items:center;gap:10px;font-size:13.5px"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.75" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>Real-time order tracking via SSE</div>
+          </div>
+        </div>
+        <div style="padding:42px 38px;display:flex;flex-direction:column;gap:15px">
+          <div><div class="card-kicker" style="font-size:11px">Sign in · test mode</div><h3 style="font-size:25px;margin:6px 0 0">Welcome back</h3></div>
+          <div class="field"><label>Email</label><input class="input" type="email" value="{{ email }}" onInput="{{ setEmail }}" placeholder="you@example.com"></div>
+          <div class="field"><label>Password</label><input class="input" type="password" value="{{ password }}" onInput="{{ setPassword }}" placeholder="••••••••"></div>
+          <sc-if value="{{ canSignIn }}"><button class="btn btn-primary btn-block" onClick="{{ signIn }}" style="padding:13px;font-size:15px;margin-top:4px">Sign in</button></sc-if>
+          <sc-if value="{{ cannotSignIn }}" hint-placeholder-val="{{ true }}"><button class="btn btn-primary btn-block" disabled style="padding:13px;font-size:15px;margin-top:4px">Sign in</button></sc-if>
+          <div class="text-muted" style="font-size:12px;text-align:center;margin-top:2px">or use a demo account</div>
+          <div style="display:flex;gap:10px">
+            <button class="btn btn-secondary" onClick="{{ fillAdmin }}" style="flex:1;flex-direction:column;gap:1px;padding:11px;height:auto"><span style="font-size:13px">Admin</span><span class="text-muted" style="font-size:10px;font-family:ui-monospace,monospace">admin@payflow.dev</span></button>
+            <button class="btn btn-secondary" onClick="{{ fillCustomer }}" style="flex:1;flex-direction:column;gap:1px;padding:11px;height:auto"><span style="font-size:13px">Customer</span><span class="text-muted" style="font-size:10px;font-family:ui-monospace,monospace">customer@payflow.dev</span></button>
+          </div>
+        </div>
+      </div>
+    </section>
+    </sc-if>
+
+    <!-- ═══════════════ SHOP ═══════════════ -->
+    <sc-if value="{{ isShop }}" hint-placeholder-val="{{ true }}">
+    <section class="pf-view" data-screen-label="Shop">
+      <div style="display:flex;justify-content:space-between;align-items:flex-end;gap:24px;flex-wrap:wrap;padding:40px 0 26px">
+        <div style="max-width:560px">
+          <div class="card-kicker" style="font-size:12px">Demo storefront · test mode</div>
+          <h1 style="font-size:46px;margin:6px 0 8px">Good electronics,<br>honestly priced.</h1>
+          <p class="text-muted" style="font-size:15px;margin:0">Every order runs the real saga — inventory, payment, fulfilment — live.</p>
+        </div>
+        <label class="input" style="display:flex;align-items:center;gap:9px;width:min(300px,100%);background:var(--color-surface)">
+          <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2.75" stroke-linecap="round" stroke-linejoin="round" style="opacity:.6;flex:none"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+          <input value="{{ query }}" onInput="{{ setQuery }}" placeholder="Search products…" style="border:0;background:transparent;outline:none;font:inherit;font-size:14px;width:100%;color:var(--color-text)">
+        </label>
+      </div>
+
+      <div style="display:flex;gap:9px;margin-bottom:26px;flex-wrap:wrap">
+        <sc-for list="{{ cats }}" as="cat" hint-placeholder-count="5">
+          <button class="{{ cat.cls }}" onClick="{{ cat.onClick }}" style="padding:7px 16px;font-size:13px;cursor:pointer;border:0;font-family:var(--font-body)">{{ cat.name }}</button>
+        </sc-for>
+      </div>
+
+      <sc-if value="{{ hasResults }}" hint-placeholder-val="{{ true }}">
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:20px">
+        <sc-for list="{{ products }}" as="product" hint-placeholder-count="8">
+          <div style="display:flex;flex-direction:column;background:var(--color-surface);border-radius:var(--radius-lg);overflow:hidden;box-shadow:var(--shadow-sm);transition:transform .18s ease, box-shadow .18s ease" style-hover="transform:translateY(-5px);box-shadow:var(--shadow-lg)">
+            <div style="position:relative;aspect-ratio:4/3;background:var(--color-accent-100);background-image:repeating-linear-gradient(-45deg, color-mix(in srgb, var(--color-accent) 8%, transparent) 0 1px, transparent 1px 13px);display:flex;align-items:center;justify-content:center">
+              <span class="tag {{ product.tagClass }}" style="position:absolute;top:12px;left:12px">{{ product.cat }}</span>
+              <sc-if value="{{ product.stockLabel }}"><span class="tag tag-outline" style="position:absolute;top:12px;right:12px;background:var(--color-bg)">{{ product.stockLabel }}</span></sc-if>
+              <span style="font-family:ui-monospace,monospace;font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:color-mix(in srgb, var(--color-text) 34%, transparent)">product shot</span>
+            </div>
+            <div style="padding:16px 16px 18px;display:flex;flex-direction:column;gap:7px;flex:1">
+              <div class="card-title">{{ product.name }}</div>
+              <p class="text-muted" style="font-size:12.5px;margin:0;flex:1">{{ product.blurb }}</p>
+              <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:6px">
+                <span style="font-family:var(--font-heading);font-size:22px">{{ product.priceLabel }}</span>
+                <sc-if value="{{ product.soldOut }}"><button class="btn btn-secondary" disabled style="padding:9px 15px">Sold out</button></sc-if>
+                <sc-if value="{{ product.inStock }}" hint-placeholder-val="{{ true }}">
+                  <button class="btn btn-primary" onClick="{{ product.add }}" style="padding:9px 15px">
+                    <sc-if value="{{ product.notAdded }}" hint-placeholder-val="{{ true }}"><span style="display:inline-flex;align-items:center;gap:6px"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.75" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M12 5v14"/></svg>Add</span></sc-if>
+                    <sc-if value="{{ product.added }}"><span style="display:inline-flex;align-items:center;gap:6px;animation:pf-pop .35s ease"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.75" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>Added</span></sc-if>
+                  </button>
+                </sc-if>
+              </div>
+            </div>
+          </div>
+        </sc-for>
+      </div>
+      </sc-if>
+      <sc-if value="{{ noResults }}">
+        <div style="text-align:center;padding:90px 20px;color:color-mix(in srgb, var(--color-text) 55%, transparent)">
+          <div style="font-family:var(--font-heading);font-size:22px;color:var(--color-text);margin-bottom:6px">Nothing matches that</div>
+          <p style="margin:0 0 16px">Try another search or category.</p>
+          <button class="btn btn-secondary" onClick="{{ clearFilters }}">Clear filters</button>
+        </div>
+      </sc-if>
+    </section>
+    </sc-if>
+
+    <!-- ═══════════════ CART ═══════════════ -->
+    <sc-if value="{{ isCart }}">
+    <section class="pf-view" data-screen-label="Cart">
+      <div style="padding:40px 0 22px"><h1 style="font-size:38px;margin:0">Your cart</h1></div>
+
+      <sc-if value="{{ cartEmpty }}">
+        <div style="text-align:center;padding:80px 20px;background:var(--color-surface);border-radius:var(--radius-lg)">
+          <div style="width:64px;height:64px;border-radius:999px;background:var(--color-accent-100);display:flex;align-items:center;justify-content:center;margin:0 auto 18px;color:var(--color-accent-700)">
+            <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="2.75" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><path d="M3 6h18"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>
+          </div>
+          <div style="font-family:var(--font-heading);font-size:24px;margin-bottom:6px">Your cart is empty</div>
+          <p class="text-muted" style="margin:0 0 18px">Add a few things and watch the saga run.</p>
+          <button class="btn btn-primary" onClick="{{ goShop }}">Browse products</button>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{ cartFilled }}">
+      <div style="display:grid;grid-template-columns:1fr;gap:24px;align-items:start">
+        <div style="display:grid;grid-template-columns:minmax(0,1.7fr) minmax(280px,1fr);gap:24px;align-items:start" data-cart-cols>
+          <div style="display:flex;flex-direction:column;gap:14px">
+            <sc-for list="{{ cartItems }}" as="item" hint-placeholder-count="2">
+              <div style="display:flex;gap:16px;align-items:center;background:var(--color-surface);border-radius:var(--radius-lg);padding:14px 16px;box-shadow:var(--shadow-sm)">
+                <div style="width:74px;height:74px;flex:none;border-radius:var(--radius-md);background:var(--color-accent-100);background-image:repeating-linear-gradient(-45deg, color-mix(in srgb, var(--color-accent) 8%, transparent) 0 1px, transparent 1px 11px)"></div>
+                <div style="flex:1;min-width:0">
+                  <div class="card-title" style="font-size:16px">{{ item.name }}</div>
+                  <div class="text-muted" style="font-size:12.5px">{{ item.cat }} · {{ item.priceLabel }} each</div>
+                </div>
+                <div style="display:inline-flex;align-items:center;gap:2px;border:1px solid var(--color-divider);border-radius:999px;padding:3px">
+                  <button class="btn btn-icon" onClick="{{ item.dec }}" style="width:30px;height:30px" aria-label="Decrease"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.75" stroke-linecap="round"><path d="M5 12h14"/></svg></button>
+                  <span style="min-width:22px;text-align:center;font-family:var(--font-heading);font-size:15px">{{ item.qty }}</span>
+                  <button class="btn btn-icon" onClick="{{ item.inc }}" style="width:30px;height:30px" aria-label="Increase"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.75" stroke-linecap="round"><path d="M5 12h14"/><path d="M12 5v14"/></svg></button>
+                </div>
+                <div style="font-family:var(--font-heading);font-size:18px;min-width:64px;text-align:right">{{ item.lineLabel }}</div>
+                <button class="btn btn-ghost" onClick="{{ item.remove }}" style="padding:6px" aria-label="Remove"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2.75" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg></button>
+              </div>
+            </sc-for>
+          </div>
+
+          <div style="position:sticky;top:88px;display:flex;flex-direction:column;gap:14px;background:var(--color-surface);border-radius:var(--radius-lg);padding:22px;box-shadow:var(--shadow-md)">
+            <h3 style="margin:0;font-size:20px">Summary</h3>
+            <div style="display:flex;justify-content:space-between;font-size:14px"><span class="text-muted">Subtotal</span><span>{{ subtotalLabel }}</span></div>
+            <div style="display:flex;justify-content:space-between;font-size:14px"><span class="text-muted">Shipping</span><span>{{ shippingLabel }}</span></div>
+            <sc-if value="{{ notFreeShip }}"><div class="text-muted" style="font-size:12px;margin-top:-6px">{{ freeShipHint }}</div></sc-if>
+            <hr class="hr" style="margin:6px 0">
+            <div style="display:flex;justify-content:space-between;align-items:baseline"><span style="font-family:var(--font-heading);font-size:17px">Total</span><span style="font-family:var(--font-heading);font-size:26px">{{ totalLabel }}</span></div>
+            <button class="btn btn-primary btn-block" onClick="{{ placeOrder }}" style="padding:13px;font-size:15px;margin-top:6px">Place order</button>
+            <div class="text-muted" style="font-size:11px;display:flex;align-items:center;gap:6px;justify-content:center">
+              <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.75" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+              Secured by Stripe · idempotency-key sent
+            </div>
+          </div>
+        </div>
+      </div>
+      </sc-if>
+    </section>
+    </sc-if>
+
+    <!-- ═══════════════ ORDERS ═══════════════ -->
+    <sc-if value="{{ isOrders }}">
+    <section class="pf-view" data-screen-label="Orders">
+      <div style="padding:40px 0 22px"><h1 style="font-size:38px;margin:0">Your orders</h1></div>
+
+      <!-- HERO: live saga timeline -->
+      <div style="background:var(--color-surface);border-radius:var(--radius-lg);box-shadow:var(--shadow-md);overflow:hidden;margin-bottom:30px">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:16px;flex-wrap:wrap;padding:24px 26px;border-bottom:1px solid var(--color-divider)">
+          <div>
+            <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+              <span style="font-family:var(--font-heading);font-size:22px">Order {{ hero.id }}</span>
+              <span class="tag {{ hero.statusCls }}">{{ hero.statusLabel }}</span>
+            </div>
+            <div class="text-muted" style="font-size:13px;margin-top:4px">{{ hero.itemsLabel }} · {{ hero.placedAt }}</div>
+          </div>
+          <div style="text-align:right">
+            <div style="font-family:var(--font-heading);font-size:26px">{{ hero.totalLabel }}</div>
+            <sc-if value="{{ hero.isLive }}"><div style="display:inline-flex;align-items:center;gap:7px;font-size:12px;color:var(--color-accent-700);margin-top:4px"><span style="width:8px;height:8px;border-radius:999px;background:var(--color-accent);animation:pf-pulse 1.4s infinite"></span>Live · streaming via SSE</div></sc-if>
+            <sc-if value="{{ hero.isDone }}"><button class="btn btn-ghost" onClick="{{ replay }}" style="margin-top:2px;display:inline-flex;align-items:center;gap:6px"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.75" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></svg>Replay stream</button></sc-if>
+          </div>
+        </div>
+
+        <div style="padding:26px">
+          <sc-if value="{{ connecting }}">
+            <div style="display:flex;align-items:center;gap:10px;color:color-mix(in srgb, var(--color-text) 60%, transparent);font-size:13px;margin-bottom:18px"><span style="width:14px;height:14px;border:2px solid var(--color-accent);border-right-color:transparent;border-radius:999px;animation:pf-spin .7s linear infinite"></span>Connecting to live stream…</div>
+            <div style="display:flex;flex-direction:column;gap:14px">
+              <div class="pf-shim" style="height:16px;width:52%"></div>
+              <div class="pf-shim" style="height:16px;width:64%"></div>
+              <div class="pf-shim" style="height:16px;width:44%"></div>
+            </div>
+          </sc-if>
+          <sc-if value="{{ streaming }}" hint-placeholder-val="{{ true }}">
+            <sc-for list="{{ hero.stages }}" as="stage" hint-placeholder-count="6">
+              <div style="display:grid;grid-template-columns:34px 1fr;gap:16px">
+                <div style="display:flex;flex-direction:column;align-items:center">
+                  <sc-if value="{{ stage.done }}" hint-placeholder-val="{{ true }}"><div style="width:26px;height:26px;flex:none;border-radius:999px;background:var(--color-accent-2-500);color:#fff;display:flex;align-items:center;justify-content:center"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></div></sc-if>
+                  <sc-if value="{{ stage.active }}"><div style="width:26px;height:26px;flex:none;border-radius:999px;background:var(--color-accent-100);border:2px solid var(--color-accent);animation:pf-pulse 1.4s infinite;display:flex;align-items:center;justify-content:center"><span style="width:9px;height:9px;border:2px solid var(--color-accent);border-right-color:transparent;border-radius:999px;animation:pf-spin .7s linear infinite"></span></div></sc-if>
+                  <sc-if value="{{ stage.failed }}"><div style="width:26px;height:26px;flex:none;border-radius:999px;background:var(--color-accent-700);color:#fff;display:flex;align-items:center;justify-content:center"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M12 8v5"/><path d="M12 17h.01"/></svg></div></sc-if>
+                  <sc-if value="{{ stage.pending }}"><div style="width:26px;height:26px;flex:none;border-radius:999px;background:var(--color-bg);border:2px solid var(--color-neutral-400)"></div></sc-if>
+                  <sc-if value="{{ stage.showLine }}"><div style="width:2px;flex:1;min-height:20px;margin:4px 0;background:{{ stage.lineColor }}"></div></sc-if>
+                </div>
+                <div style="padding-bottom:20px">
+                  <div style="font-family:var(--font-heading);font-size:16px;color:{{ stage.labelColor }}">{{ stage.label }}</div>
+                  <div class="text-muted" style="font-size:13px">{{ stage.desc }}</div>
+                  <div style="font-family:ui-monospace,monospace;font-size:11px;color:color-mix(in srgb, var(--color-text) 45%, transparent);margin-top:3px">{{ stage.ts }}</div>
+                </div>
+              </div>
+            </sc-for>
+          </sc-if>
+        </div>
+      </div>
+
+      <h3 style="margin:0 0 14px;font-size:20px">Order history</h3>
+      <div style="display:flex;flex-direction:column;gap:14px">
+        <sc-for list="{{ pastOrders }}" as="order" hint-placeholder-count="2">
+          <div style="background:var(--color-surface);border-radius:var(--radius-lg);padding:18px 20px;box-shadow:var(--shadow-sm)">
+            <div style="display:flex;justify-content:space-between;align-items:center;gap:14px;flex-wrap:wrap">
+              <div>
+                <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap"><span style="font-family:var(--font-heading);font-size:17px">Order {{ order.id }}</span><span class="tag {{ order.statusCls }}">{{ order.statusLabel }}</span></div>
+                <div class="text-muted" style="font-size:13px;margin-top:3px">{{ order.itemsLabel }} · {{ order.placedAt }}</div>
+              </div>
+              <div style="font-family:var(--font-heading);font-size:20px">{{ order.totalLabel }}</div>
+            </div>
+            <sc-if value="{{ order.isFailed }}">
+              <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-top:14px;padding:12px 14px;background:var(--color-accent-100);border-radius:var(--radius-md)">
+                <div style="display:flex;align-items:center;gap:9px;color:var(--color-accent-800);font-size:13px">
+                  <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.75" stroke-linecap="round" stroke-linejoin="round"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>
+                  {{ order.errorText }}
+                </div>
+                <button class="btn btn-primary" onClick="{{ order.retry }}" style="padding:8px 16px">Retry payment</button>
+              </div>
+            </sc-if>
+          </div>
+        </sc-for>
+      </div>
+    </section>
+    </sc-if>
+
+    <!-- ═══════════════ ADMIN ═══════════════ -->
+    <sc-if value="{{ isAdmin }}">
+    <section class="pf-view" data-screen-label="Admin">
+      <div style="display:flex;justify-content:space-between;align-items:flex-end;gap:16px;flex-wrap:wrap;padding:40px 0 24px">
+        <div><div class="card-kicker" style="font-size:12px">Operations · live</div><h1 style="font-size:38px;margin:6px 0 0">Payments dashboard</h1></div>
+        <span class="tag tag-accent-2" style="display:inline-flex;align-items:center;gap:7px"><span style="width:7px;height:7px;border-radius:999px;background:var(--color-accent-2-600);animation:pf-pulse 1.6s infinite"></span>All systems nominal</span>
+      </div>
+
+      <sc-if value="{{ adminLoading }}">
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:16px;margin-bottom:20px">
+          <div class="pf-shim" style="height:104px"></div><div class="pf-shim" style="height:104px"></div><div class="pf-shim" style="height:104px"></div><div class="pf-shim" style="height:104px"></div>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:16px">
+          <div class="pf-shim" style="height:240px"></div><div class="pf-shim" style="height:240px"></div>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{ adminReady }}">
+      <div class="pf-view">
+        <!-- metrics -->
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:16px;margin-bottom:16px">
+          <sc-for list="{{ metrics }}" as="m" hint-placeholder-count="4">
+            <div style="background:var(--color-surface);border-radius:var(--radius-lg);padding:20px;box-shadow:var(--shadow-sm)">
+              <div class="text-muted" style="font-size:12px;letter-spacing:.04em">{{ m.label }}</div>
+              <div style="font-family:var(--font-heading);font-size:32px;margin:8px 0 4px">{{ m.value }}</div>
+              <div style="font-size:12px;color:{{ m.deltaColor }};display:inline-flex;align-items:center;gap:4px">{{ m.deltaArrow }} {{ m.delta }}</div>
+            </div>
+          </sc-for>
+        </div>
+
+        <!-- charts -->
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:16px;margin-bottom:16px">
+          <div style="background:var(--color-surface);border-radius:var(--radius-lg);padding:22px;box-shadow:var(--shadow-sm)">
+            <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:14px"><h4 style="margin:0;font-size:17px">Revenue</h4><span class="text-muted" style="font-size:12px">last 14 days</span></div>
+            <svg viewBox="0 0 560 160" preserveAspectRatio="none" style="width:100%;height:150px;display:block" data-om-raster>
+              <defs><linearGradient id="revg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="var(--color-accent)" stop-opacity="0.28"/><stop offset="1" stop-color="var(--color-accent)" stop-opacity="0"/></linearGradient></defs>
+              <path d="{{ revArea }}" fill="url(#revg)"></path>
+              <polyline points="{{ revLine }}" fill="none" stroke="var(--color-accent)" stroke-width="2.75" stroke-linecap="round" stroke-linejoin="round"></polyline>
+            </svg>
+          </div>
+          <div style="background:var(--color-surface);border-radius:var(--radius-lg);padding:22px;box-shadow:var(--shadow-sm)">
+            <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:14px"><h4 style="margin:0;font-size:17px">Order volume</h4><span class="text-muted" style="font-size:12px">orders / day</span></div>
+            <div style="display:flex;align-items:flex-end;gap:6px;height:150px">
+              <sc-for list="{{ volBars }}" as="bar" hint-placeholder-count="14">
+                <div style="flex:1;height:{{ bar.h }};background:var(--color-accent-2-400);border-radius:6px 6px 0 0;min-height:4px" title="{{ bar.v }}"></div>
+              </sc-for>
+            </div>
+          </div>
+        </div>
+
+        <!-- queues + dead-letter -->
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:16px;margin-bottom:16px">
+          <div style="background:var(--color-surface);border-radius:var(--radius-lg);padding:22px;box-shadow:var(--shadow-sm)">
+            <h4 style="margin:0 0 16px;font-size:17px">Redis stream depths</h4>
+            <div style="display:flex;flex-direction:column;gap:15px">
+              <sc-for list="{{ queues }}" as="q" hint-placeholder-count="5">
+                <div>
+                  <div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:5px"><span style="font-family:ui-monospace,monospace">{{ q.name }}</span><span class="text-muted">{{ q.depth }} queued · {{ q.rate }}</span></div>
+                  <div style="height:7px;border-radius:999px;background:var(--color-neutral-300);overflow:hidden"><div style="height:100%;border-radius:999px;width:{{ q.pct }};background:{{ q.color }}"></div></div>
+                </div>
+              </sc-for>
+            </div>
+          </div>
+          <div style="background:var(--color-surface);border-radius:var(--radius-lg);padding:22px;box-shadow:var(--shadow-sm)">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px"><h4 style="margin:0;font-size:17px">Dead-letter queue</h4><span class="tag tag-accent">{{ deadCount }} stuck</span></div>
+            <div style="display:flex;flex-direction:column;gap:12px">
+              <sc-for list="{{ dead }}" as="d" hint-placeholder-count="2">
+                <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;padding-bottom:12px;border-bottom:1px solid var(--color-divider)">
+                  <div style="min-width:0">
+                    <div style="font-family:ui-monospace,monospace;font-size:12.5px">{{ d.id }} · {{ d.stream }}</div>
+                    <div class="text-muted" style="font-size:12px">{{ d.err }} · {{ d.age }}</div>
+                  </div>
+                  <button class="btn btn-secondary" onClick="{{ d.retry }}" style="padding:7px 14px;flex:none">{{ d.btn }}</button>
+                </div>
+              </sc-for>
+            </div>
+          </div>
+        </div>
+
+        <!-- reconciliation -->
+        <div style="background:var(--color-surface);border-radius:var(--radius-lg);padding:22px;box-shadow:var(--shadow-sm);margin-bottom:16px">
+          <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:14px">
+            <h4 style="margin:0;font-size:17px">Daily reconciliation vs Stripe</h4>
+            <span class="text-muted" style="font-size:12px">ran {{ recon.ran }} · {{ recon.checked }} checked · {{ recon.matched }} matched</span>
+          </div>
+          <table class="table">
+            <thead><tr><th>Payment</th><th>Discrepancy</th><th>Detail</th></tr></thead>
+            <tbody>
+              <sc-for list="{{ recon.rows }}" as="r" hint-placeholder-count="2">
+                <tr><td style="font-family:ui-monospace,monospace;font-size:12.5px">{{ r.id }}</td><td><span class="tag tag-accent">{{ r.kind }}</span></td><td class="text-muted" style="font-size:13px">{{ r.detail }}</td></tr>
+              </sc-for>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- saga monitor -->
+        <div style="background:var(--color-surface);border-radius:var(--radius-lg);padding:22px;box-shadow:var(--shadow-sm)">
+          <h4 style="margin:0 0 14px;font-size:17px">Order saga monitor</h4>
+          <table class="table">
+            <thead><tr><th>Order</th><th>Stage</th><th>Amount</th><th>Age</th></tr></thead>
+            <tbody>
+              <sc-for list="{{ sagaRows }}" as="s" hint-placeholder-count="4">
+                <tr><td style="font-family:ui-monospace,monospace;font-size:12.5px">{{ s.id }}</td><td><span class="tag {{ s.tone }}" style="font-family:ui-monospace,monospace">{{ s.stage }}</span></td><td>{{ s.amount }}</td><td class="text-muted">{{ s.age }}</td></tr>
+              </sc-for>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      </sc-if>
+    </section>
+    </sc-if>
+
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1180,&quot;height&quot;:840}}">
+class Component extends DCLogic {
+  state = {
+    view: "login", email: "", password: "", userEmail: "",
+    cart: {}, flash: null, query: "", cat: "All",
+    connecting: false, adminReady: false,
+    orders: [
+      { id:"O-2041", items:[{name:"Aura Wireless Earbuds",qty:1},{name:"Orbit Wireless Mouse",qty:1}], total:17800, reached:0, failedAt:null, live:false, placedAt:"Just now" },
+      { id:"O-2038", items:[{name:"Fathom ANC Headphones",qty:1}], total:24900, reached:6, failedAt:null, live:false, placedAt:"Yesterday" },
+      { id:"O-2035", items:[{name:"Vertex Mechanical Keyboard",qty:1}], total:15900, reached:2, failedAt:2, live:false, placedAt:"3 days ago" },
+    ],
+  };
+  _seq = 2042;
+
+  PRODUCTS = [
+    { id:"earbuds", name:"Aura Wireless Earbuds", cat:"Audio", price:12900, stock:34, tagClass:"tag-accent", blurb:"Featherweight buds with adaptive noise cancelling." },
+    { id:"band", name:"Pulse Fitness Band", cat:"Wearables", price:8900, stock:0, tagClass:"tag-accent-2", blurb:"Seven-day battery and always-on health tracking." },
+    { id:"speaker", name:"Nimbus Portable Speaker", cat:"Audio", price:14900, stock:21, tagClass:"tag-accent", blurb:"Room-filling sound that packs into a bag." },
+    { id:"lamp", name:"Halo Smart Lamp", cat:"Home", price:6900, stock:48, tagClass:"tag-accent-2", blurb:"Circadian lighting tuned to your day." },
+    { id:"keeb", name:"Vertex Mechanical Keyboard", cat:"Desktop", price:15900, stock:8, tagClass:"tag-neutral", blurb:"Hot-swappable switches, machined frame." },
+    { id:"mouse", name:"Orbit Wireless Mouse", cat:"Desktop", price:4900, stock:63, tagClass:"tag-neutral", blurb:"Silent clicks and a glass-ready sensor." },
+    { id:"head", name:"Fathom ANC Headphones", cat:"Audio", price:24900, stock:15, tagClass:"tag-accent", blurb:"Studio-grade cans with 40-hour battery." },
+    { id:"mug", name:"Ember Smart Mug", cat:"Home", price:9900, stock:27, tagClass:"tag-accent-2", blurb:"Keeps coffee at your exact temperature." },
+  ];
+
+  STAGES = [
+    { label:"Order placed", desc:"Request accepted with idempotency key" },
+    { label:"Inventory reserved", desc:"Stock locked via optimistic locking" },
+    { label:"Payment processing", desc:"Stripe PaymentIntent created" },
+    { label:"Payment captured", desc:"Funds secured, webhook verified" },
+    { label:"Order confirmed", desc:"All saga checks passed" },
+    { label:"Fulfilled", desc:"Handed to carrier" },
+  ];
+  STAGE_TS = ["12:04:02","12:04:02","12:04:03","12:04:05","12:04:06","12:04:11"];
+
+  fmt(c){ return "$" + Math.round(c/100).toLocaleString("en-US"); }
+
+  componentWillUnmount(){ clearInterval(this._iv); clearTimeout(this._to); }
+
+  // ── auth ──
+  signIn = () => { if (!this.state.email || !this.state.password) return; this.setState({ view:"shop", userEmail:this.state.email }); };
+  signOut = () => { this.setState({ view:"login", password:"" }); };
+  fillDemo(email, pw){ this.setState({ email, password:pw }); };
+
+  // ── navigation ──
+  go(v){ this.setState({ view:v }); }
+  goShop = () => this.go("shop");
+  goCart = () => this.go("cart");
+  goOrders = () => {
+    this.go("orders");
+    const first = this.state.orders[0];
+    if (first && first.reached === 0 && !first.live && first.failedAt == null && !this._started) {
+      this._started = true; this.startLive(first.id);
+    }
+  };
+  goAdmin = () => {
+    this.go("admin");
+    if (!this.state.adminReady) setTimeout(() => this.setState({ adminReady:true }), 750);
+  };
+
+  // ── cart ──
+  addToCart(id){
+    const p = this.PRODUCTS.find(x=>x.id===id);
+    if (!p || p.stock===0) return;
+    clearTimeout(this._flashT);
+    this.setState(s => ({ cart: { ...s.cart, [id]: (s.cart[id]||0)+1 }, flash:id }));
+    this._flashT = setTimeout(()=>this.setState({flash:null}), 1300);
+  }
+  setQty(id, d){
+    this.setState(s => {
+      const c = { ...s.cart }; const q = (c[id]||0)+d;
+      if (q<=0) delete c[id]; else c[id]=q;
+      return { cart:c };
+    });
+  }
+  removeItem(id){ this.setState(s => { const c={...s.cart}; delete c[id]; return {cart:c}; }); }
+
+  // ── orders / saga ──
+  updateOrder(id, patch){ this.setState(s => ({ orders: s.orders.map(o => o.id===id ? {...o,...patch} : o) })); }
+  startLive(id){
+    clearInterval(this._iv); clearTimeout(this._to);
+    this.updateOrder(id, { live:true, reached:0, failedAt:null });
+    this.setState({ connecting:true });
+    this._to = setTimeout(() => {
+      this.setState({ connecting:false });
+      this.updateOrder(id, { reached:1 });
+      this._iv = setInterval(() => {
+        const o = this.state.orders.find(x=>x.id===id);
+        if (!o || o.reached>=6){ clearInterval(this._iv); if(o) this.updateOrder(id,{live:false}); return; }
+        this.updateOrder(id, { reached:o.reached+1 });
+      }, 1500);
+    }, 900);
+  }
+  replay = () => { const h = this.state.orders[0]; if (h) this.startLive(h.id); };
+  placeOrder = () => {
+    const items = Object.entries(this.state.cart).map(([id,qty]) => {
+      const p = this.PRODUCTS.find(x=>x.id===id); return { name:p.name, qty };
+    });
+    if (!items.length) return;
+    const sub = this.cartSubtotal();
+    const ship = sub>=20000 ? 0 : 900;
+    const id = "O-" + (this._seq++);
+    const order = { id, items, total: sub+ship, reached:0, failedAt:null, live:false, placedAt:"Just now" };
+    this.setState(s => ({ orders:[order, ...s.orders], cart:{}, view:"orders" }));
+    this.startLive(id);
+  };
+  retryOrder(id){
+    // bring the failed order to the front, then live-replay it
+    this.setState(s => {
+      const o = s.orders.find(x=>x.id===id);
+      const rest = s.orders.filter(x=>x.id!==id);
+      return { orders:[{...o}, ...rest], view:"orders" };
+    });
+    setTimeout(()=>this.startLive(id), 0);
+  }
+
+  cartSubtotal(){ return Object.entries(this.state.cart).reduce((a,[id,q])=>{ const p=this.PRODUCTS.find(x=>x.id===id); return a + (p?p.price*q:0); },0); }
+
+  decorateOrder(o){
+    const failed = o.failedAt != null;
+    const done = !failed && o.reached>=6;
+    const stages = this.STAGES.map((st,i) => {
+      let state = "pending";
+      if (failed && i===o.failedAt) state="failed";
+      else if (i < o.reached) state="done";
+      else if (i === o.reached && !failed) state="active";
+      const isLast = i===this.STAGES.length-1;
+      return {
+        label:st.label, desc: state==="failed" ? "Card declined — insufficient funds" : st.desc,
+        ts: (state==="done"||state==="failed") ? this.STAGE_TS[i] : (state==="active" ? "processing…" : ""),
+        done: state==="done", active: state==="active", failed: state==="failed", pending: state==="pending",
+        showLine: !isLast,
+        lineColor: (i < o.reached) ? "var(--color-accent-2-500)" : "var(--color-neutral-300)",
+        labelColor: (state==="pending") ? "color-mix(in srgb, var(--color-text) 55%, transparent)" : "var(--color-text)",
+      };
+    });
+    return {
+      id:o.id, placedAt:o.placedAt, totalLabel:this.fmt(o.total),
+      itemsLabel: o.items.map(it=>it.qty+"× "+it.name).join(", "),
+      statusLabel: failed ? "Payment failed" : done ? "Fulfilled" : "In progress",
+      statusCls: failed ? "tag-accent" : done ? "tag-accent-2" : "tag-neutral",
+      isLive: o.live && o.reached<6, isDone: done, isFailed: failed,
+      errorText: "Payment failed — card declined (insufficient_funds)",
+      retry: () => this.retryOrder(o.id),
+      stages,
+    };
+  }
+
+  buildAdmin(){
+    const rev = [62,58,71,66,74,80,72,86,90,88,97,103,112,124];
+    const max = Math.max(...rev), n = rev.length;
+    const X = i => 8 + i*(544/(n-1));
+    const Y = v => 140 - (v/max)*116;
+    const line = rev.map((v,i)=>X(i).toFixed(1)+","+Y(v).toFixed(1)).join(" ");
+    const area = "M8,140 L " + line + " L " + X(n-1).toFixed(1) + ",140 Z";
+    const vol = [58,66,52,74,70,84,80,62,78,72,90,86,96,100];
+    const vmax = Math.max(...vol);
+    return {
+      revLine: line, revArea: area,
+      volBars: vol.map(v => ({ h: Math.round(v/vmax*100)+"%", v: Math.round(v*1.4)+" orders" })),
+      metrics: [
+        { label:"Revenue today", value:"$12,480", delta:"8.2% vs yesterday", up:true },
+        { label:"Orders today", value:"143", delta:"12 more", up:true },
+        { label:"Payment success", value:"98.6%", delta:"0.4 pts", up:true },
+        { label:"Avg fulfilment", value:"4.2s", delta:"0.3s faster", up:true },
+      ].map(m => ({ ...m, deltaColor: m.up ? "var(--color-accent-2-700)" : "var(--color-accent-700)", deltaArrow: m.up ? "▲" : "▼" })),
+      queues: [
+        { name:"inventory.reserve", depth:3, rate:"820/s", pct:"12%", color:"var(--color-accent-2-500)" },
+        { name:"payment.process", depth:11, rate:"640/s", pct:"34%", color:"var(--color-accent-2-500)" },
+        { name:"webhook.handle", depth:2, rate:"910/s", pct:"8%", color:"var(--color-accent-2-500)" },
+        { name:"refund.issue", depth:0, rate:"120/s", pct:"3%", color:"var(--color-accent-2-500)" },
+        { name:"reconcile.daily", depth:47, rate:"backed up", pct:"74%", color:"var(--color-accent-500)" },
+      ],
+      dead: [
+        { id:"msg_9f2a", stream:"payment.process", err:"stripe: timeout after 30s", age:"2m ago", btn:"Retry" },
+        { id:"msg_7c10", stream:"webhook.handle", err:"signature verification failed", age:"14m ago", btn:"Inspect" },
+      ].map(d => ({ ...d, retry: () => {} })),
+      recon: { ran:"02:00 UTC", checked:"1,428", matched:"1,426", rows:[
+        { id:"pi_3Q7f…", kind:"amount mismatch", detail:"local $149.00 · Stripe $148.00" },
+        { id:"pi_3R1a…", kind:"missing local", detail:"present in Stripe, absent locally" },
+      ]},
+      sagaRows: [
+        { id:"O-2041", stage:"payment_captured", tone:"tag-neutral", amount:"$178", age:"just now" },
+        { id:"O-2040", stage:"fulfilled", tone:"tag-accent-2", amount:"$69", age:"1m" },
+        { id:"O-2039", stage:"inventory_reserved", tone:"tag-neutral", amount:"$99", age:"2m" },
+        { id:"O-2035", stage:"payment_failed", tone:"tag-accent", amount:"$159", age:"3d" },
+      ],
+    };
+  }
+
+  renderVals(){
+    const s = this.state;
+    // shop
+    const products = this.PRODUCTS
+      .filter(p => (s.cat==="All" || p.cat===s.cat) && p.name.toLowerCase().includes(s.query.toLowerCase()))
+      .map(p => ({
+        ...p, priceLabel: this.fmt(p.price),
+        soldOut: p.stock===0, inStock: p.stock>0,
+        stockLabel: p.stock===0 ? "Sold out" : (p.stock<=10 ? "Only "+p.stock+" left" : ""),
+        added: s.flash===p.id, notAdded: s.flash!==p.id,
+        add: () => this.addToCart(p.id),
+      }));
+    const cats = ["All","Audio","Wearables","Desktop","Home"].map(c => ({
+      name:c, cls: "tag " + (c===s.cat ? "tag-accent" : "tag-neutral"), onClick: () => this.setState({cat:c}),
+    }));
+    // cart
+    const cartItems = Object.entries(s.cart).map(([id,qty]) => {
+      const p = this.PRODUCTS.find(x=>x.id===id);
+      return { id, name:p.name, cat:p.cat, qty, priceLabel:this.fmt(p.price), lineLabel:this.fmt(p.price*qty),
+        inc:()=>this.setQty(id,1), dec:()=>this.setQty(id,-1), remove:()=>this.removeItem(id) };
+    });
+    const sub = this.cartSubtotal();
+    const freeShip = sub>=20000;
+    const ship = freeShip ? 0 : 900;
+    // orders
+    const decorated = s.orders.map(o => this.decorateOrder(o));
+    // admin
+    const A = this.buildAdmin();
+
+    return {
+      cartCount: Object.values(s.cart).reduce((a,b)=>a+b,0),
+      isLogin:s.view==="login", showNav:s.view!=="login",
+      email:s.email, password:s.password,
+      setEmail:(e)=>this.setState({email:e.target.value}), setPassword:(e)=>this.setState({password:e.target.value}),
+      signIn:this.signIn, signOut:this.signOut,
+      canSignIn: !!(s.email && s.password), cannotSignIn: !(s.email && s.password),
+      fillAdmin:()=>this.fillDemo("admin@payflow.dev","demo-admin-123"),
+      fillCustomer:()=>this.fillDemo("customer@payflow.dev","demo-customer-123"),
+      userEmail:s.userEmail,
+      isShop:s.view==="shop", isCart:s.view==="cart", isOrders:s.view==="orders", isAdmin:s.view==="admin",
+      shopCur:s.view==="shop"?"page":null, ordersCur:s.view==="orders"?"page":null, adminCur:s.view==="admin"?"page":null,
+      goShop:this.goShop, goCart:this.goCart, goOrders:this.goOrders, goAdmin:this.goAdmin,
+      // shop
+      query:s.query, setQuery:(e)=>this.setState({query:e.target.value}),
+      cats, products, hasResults:products.length>0, noResults:products.length===0, clearFilters:()=>this.setState({cat:"All",query:""}),
+      // cart
+      cartEmpty:cartItems.length===0, cartFilled:cartItems.length>0, cartItems,
+      subtotalLabel:this.fmt(sub), shippingLabel: freeShip ? "Free" : this.fmt(ship),
+      notFreeShip:!freeShip, freeShipHint:"Free shipping over $200 — add "+this.fmt(20000-sub)+" more",
+      totalLabel:this.fmt(sub+ship), placeOrder:this.placeOrder,
+      // orders
+      hero: decorated[0], pastOrders: decorated.slice(1), connecting:s.connecting, streaming:!s.connecting, replay:this.replay,
+      // admin
+      adminLoading:!s.adminReady, adminReady:s.adminReady,
+      metrics:A.metrics, revLine:A.revLine, revArea:A.revArea, volBars:A.volBars,
+      queues:A.queues, dead:A.dead, deadCount:A.dead.length, recon:A.recon, sagaRows:A.sagaRows,
+    };
+  }
+}
+</script>
+</body>
+</html>

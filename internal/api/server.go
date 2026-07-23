@@ -23,6 +23,7 @@ import (
 	"github.com/alexkua/payflow/internal/domain/product"
 	"github.com/alexkua/payflow/internal/domain/reconciliation"
 	"github.com/alexkua/payflow/internal/domain/user"
+	"github.com/alexkua/payflow/internal/insights"
 	"github.com/alexkua/payflow/internal/queue"
 	redisstore "github.com/alexkua/payflow/internal/store/redis"
 )
@@ -64,6 +65,8 @@ func NewServer(
 	paymentHandler := handlers.NewPaymentHandler(paymentStore, orderStore, producer, stripeTestMode, logger)
 	webhookHandler := handlers.NewWebhookHandler(provider, paymentStore, producer, logger)
 	adminHandler := handlers.NewAdminHandler(reconcileStore, producer, rdb, logger)
+	insightsSvc := insights.NewService(paymentStore, reconcileStore, rdb, cfg.AnthropicAPIKey, logger)
+	insightsHandler := handlers.NewInsightsHandler(insightsSvc, logger)
 
 	// Observability
 	r.Get("/health", handlers.Health)
@@ -139,6 +142,7 @@ func NewServer(
 		r.Post("/admin/reconciliation/trigger", adminHandler.TriggerReconciliation)
 		r.Get("/admin/deadletter", adminHandler.ListDeadLetterMessages)
 		r.Get("/admin/queues", adminHandler.GetQueueDepths)
+		r.Get("/admin/insights", insightsHandler.GetSummary)
 	})
 
 	// otelhttp wraps the entire router so every request automatically gets a

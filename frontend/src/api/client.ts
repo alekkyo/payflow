@@ -165,6 +165,22 @@ export type ReconciliationRun = {
   completed_at?: string
 }
 
+export type InsightsSummary = {
+  generated_at: string
+  period: string
+  cached: boolean
+  stats: {
+    total_transactions: number
+    total_volume_cents: number
+    success_rate: number
+    failure_rate: number
+    refund_rate: number
+    avg_transaction_cents: number
+  }
+  anomalies: string[]
+  ai_summary: string
+}
+
 export const admin = {
   listReconciliationRuns: () =>
     request<ReconciliationRun[]>('/admin/reconciliation/runs'),
@@ -182,4 +198,7 @@ export const admin = {
     request<{ count: number; messages: { id: string; fields: Record<string, string> }[] }>(
       '/admin/deadletter',
     ),
+
+  getInsights: (refresh = false) =>
+    request<InsightsSummary>(`/admin/insights${refresh ? '?refresh=true' : ''}`),
 }

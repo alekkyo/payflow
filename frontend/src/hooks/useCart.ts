@@ -25,9 +25,19 @@ export function useCart() {
     setItems((prev) => prev.filter((i) => i.product.id !== productId))
   }, [])
 
+  const updateQuantity = useCallback((productId: string, qty: number) => {
+    if (qty <= 0) {
+      setItems((prev) => prev.filter((i) => i.product.id !== productId))
+    } else {
+      setItems((prev) =>
+        prev.map((i) => (i.product.id === productId ? { ...i, quantity: qty } : i)),
+      )
+    }
+  }, [])
+
   const clear = useCallback(() => setItems([]), [])
 
   const totalCents = items.reduce((sum, i) => sum + i.product.price_cents * i.quantity, 0)
 
-  return { items, addItem, removeItem, clear, totalCents }
+  return { items, addItem, removeItem, updateQuantity, clear, totalCents }
 }
