@@ -1,0 +1,17 @@
+run:
+  timeout: 5m
+
+linters-settings:
+  errcheck:
+    # Catch ignored type assertion failures: x := y.(T) without the ok form.
+    check-type-assertions: true
+    # Catch errors assigned to _ explicitly.
+    check-blank: true
+
+issues:
+  exclude-rules:
+    # errcheck false-positives in tests are common and low-risk
+    # (e.g. deferred closes, intentionally-ignored setup errors).
+    - path: _test\.go
+      linters:
+        - errcheck

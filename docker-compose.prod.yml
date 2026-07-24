@@ -27,9 +27,7 @@ services:
     restart: unless-stopped
 
   api:
-    build:
-      context: .
-      dockerfile: Dockerfile.api
+    image: ghcr.io/alekkyo/payflow-api:latest
     env_file: .env
     environment:
       # Override the localhost values in .env — containers talk to each other by service name
@@ -46,9 +44,7 @@ services:
     restart: unless-stopped
 
   worker:
-    build:
-      context: .
-      dockerfile: Dockerfile.worker
+    image: ghcr.io/alekkyo/payflow-worker:latest
     env_file: .env
     environment:
       DATABASE_URL: postgres://${DB_USER:-payflow}:${DB_PASSWORD}@postgres:5432/payflow?sslmode=disable

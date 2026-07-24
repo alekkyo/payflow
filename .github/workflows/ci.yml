@@ -1,0 +1,71 @@
+name: CI
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+    branches: ["**"]
+
+jobs:
+  go:
+    name: Go — lint · test · build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Reads the Go version from go.mod automatically.
+      # cache: true stores the module download cache between runs so
+      # `go mod download` is skipped on repeated runs — same reason
+      # putting COPY go.mod go.sum before COPY . . in the Dockerfile matters.
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      # golangci-lint runs all enabled linters in one pass.
+      # Configured via .golangci.yml at the repo root.
+      - name: Lint
+        uses: golangci/golangci-lint-action@v6
+        with:
+          version: latest
+
+      # -race enables the Go race detector. It instruments memory accesses
+      # and panics if two goroutines access the same variable concurrently
+      # without synchronisation. Slightly slower but catches real bugs.
+      - name: Test
+        run: go test -race ./...
+
+      # Build both binaries to confirm the repo compiles end-to-end.
+      # We don't keep the output — Docker builds the real artefacts.
+      - name: Build
+        run: go build ./cmd/api ./cmd/worker
+
+  frontend:
+    name: Frontend — type-check · build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # cache: npm + cache-dependency-path tells the action to restore
+      # node_modules from cache when package-lock.json hasn't changed.
+      # Without this, npm ci downloads ~300 packages on every run.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      # npm ci (clean install) is the CI equivalent of npm install.
+      # It installs exactly what's in package-lock.json and errors if
+      # the lock file is out of sync with package.json — preventing
+      # "works on my machine" dependency drift.
+      - name: Install
+        run: npm ci
+        working-directory: frontend
+
+      # npm run build runs `tsc -b && vite build`.
+      # tsc -b performs a full TypeScript type-check first — if types
+      # are wrong, the build fails before Vite even starts.
+      - name: Build
+        run: npm run build
+        working-directory: frontend
