@@ -126,6 +126,7 @@ Before creating a Stripe PaymentIntent, the payment worker acquires a per-order 
 | Containerisation | Docker + Docker Compose |
 | CI/CD | GitHub Actions → GHCR → auto-deploy on merge to main |
 | Lint | golangci-lint v2 (`errcheck`, `staticcheck`, `ineffassign`) |
+| Load testing | k6 — 50 VUs, p50/p95/p99 latency thresholds |
 | Deployment | Nginx, Let's Encrypt SSL, pre-built images from GHCR |
 
 ---
@@ -184,6 +185,8 @@ payflow/
 │       ├── ci.yml           # Lint + test + build on every push and PR
 │       └── deploy.yml       # Build images → push GHCR → SSH deploy on main
 ├── .golangci.yml            # golangci-lint v2 configuration
+├── k6/
+│   └── load-test.js         # k6 load test — login → place orders → measure latency
 ├── Dockerfile.api
 ├── Dockerfile.worker
 ├── docker-compose.yml       # Local dev (postgres, redis, grafana, jaeger)
@@ -255,6 +258,57 @@ Tests use inline mock structs implementing domain interfaces — no external moc
 - `internal/domain/product` — inventory reservation, optimistic locking, version conflicts
 - `internal/worker` — saga state transitions, idempotency guards, reconciliation algorithm, status mapping
 - `internal/api/middleware` — auth token extraction, session validation, claims propagation
+
+---
+
+## Load testing
+
+`k6/load-test.js` runs a realistic end-to-end scenario against any environment:
+
+1. Logs in as the demo customer once (shared across all virtual users)
+2. Fetches the product catalogue to get real product IDs
+3. Each virtual user places a new order every ~500 ms using a unique `Idempotency-Key`
+
+**Profile:** ramp to 50 virtual users over 30 s → hold 2 min → ramp down 30 s.
+
+**Install k6** (macOS):
+```bash
+brew install k6
+```
+
+**Before running** — bump inventory so it doesn't run out mid-test:
+```bash
+# on the production server
+docker compose exec postgres psql -U payflow -d payflow \
+  -c "UPDATE inventory SET quantity = 10000;"
+```
+
+**Run against production:**
+```bash
+k6 run --out json=k6/results.json k6/load-test.js
+```
+
+**Run against localhost** (requires local API running on port 8080):
+```bash
+BASE_URL=http://localhost:8080/api k6 run k6/load-test.js
+```
+
+**Results (production, 50 VUs, 3 min):**
+
+| Metric | Value |
+|---|---|
+| Total orders placed | — |
+| Requests/sec (sustained) | — |
+| Order creation p50 | — ms |
+| Order creation p95 | — ms |
+| Order creation p99 | — ms |
+| HTTP error rate | — % |
+
+> Run the test and fill in the table above. After the test, re-seed the database: `make seed-prod`.
+
+**What the thresholds enforce:**
+- `order_creation_ms p(99) < 3000` — 99 % of order requests complete within 3 s under 50 concurrent users
+- `http_req_failed rate < 0.05` — fewer than 5 % of requests return an error status
 
 ---
 
