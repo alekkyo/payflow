@@ -56,6 +56,9 @@ This project will be public on GitHub and is the primary technical artifact for 
 | **Stripe** | Payment provider (test mode) |
 | **Anthropic Claude** | AI payment insights (`claude-sonnet-5`, cached 30 min in Redis) |
 | **Docker + Docker Compose** | Local development environment |
+| **GitHub Actions** | CI/CD — lint, test, build, push to GHCR, deploy on merge to main |
+| **GHCR** | GitHub Container Registry — stores pre-built `api` and `worker` images |
+| **golangci-lint v2** | Static analysis — `errcheck`, `staticcheck`, `ineffassign` |
 | **React 19** | Frontend — product catalog, checkout, order tracking, admin |
 | **Tailwind CSS v3** | Utility-first styling with custom Organic design tokens |
 | **OpenTelemetry** | Distributed tracing |
@@ -774,6 +777,65 @@ Five keyframes are declared at CSS root level (not inside `@layer`) so they can 
 
 ### Implementation note
 Complex Tailwind variants (`aria-[current=page]:text-pf-accent`) and arbitrary pixel values (`w-[27px]`) proved unreliable in this codebase's JIT setup. All critical color, font, and dimension values are applied via explicit inline styles. Tailwind is used for layout utilities (flexbox, grid, padding, margin) only.
+
+---
+
+## CI/CD Pipeline
+
+Two GitHub Actions workflows in `.github/workflows/`:
+
+### `ci.yml` — runs on every push and PR
+
+```
+go job (parallel)
+  ├── golangci-lint (errcheck, staticcheck, ineffassign, safe type assertions)
+  ├── go test -race ./...
+  └── go build ./cmd/api ./cmd/worker
+
+frontend job (parallel)
+  ├── npm ci
+  └── npm run build  (tsc -b type-check + vite build)
+```
+
+Key decisions:
+- `go-version-file: go.mod` — Go version is read from `go.mod` automatically, never hardcoded in CI
+- `cache: true` on `setup-go` — module download cache persists between runs, same principle as the Dockerfile layer ordering (`COPY go.mod go.sum` before `COPY . .`)
+- `npm ci` not `npm install` — treats lock file divergence as an error, prevents ghost dependencies
+- Race detector on tests — instruments memory accesses and panics on unsynchronised concurrent access
+
+### `deploy.yml` — runs when CI passes on `main`
+
+```
+Triggered by: workflow_run on CI (conclusion == success, branch == main)
+
+deploy job
+  ├── docker login → GHCR (via auto-provisioned GITHUB_TOKEN)
+  ├── docker buildx build + push → ghcr.io/alekkyo/payflow-api:latest + :<git-sha>
+  ├── docker buildx build + push → ghcr.io/alekkyo/payflow-worker:latest + :<git-sha>
+  └── SSH to production
+        ├── git pull --ff-only
+        ├── docker compose pull api worker
+        ├── docker compose up -d api worker
+        └── docker image prune -f
+```
+
+Key decisions:
+- `workflow_run` + `if: conclusion == 'success'` — deploy only fires after CI passes, never on a failed build
+- `concurrency: cancel-in-progress: false` — queues concurrent deploys rather than killing one mid-flight (safe for payments)
+- `cache-from/cache-to: type=gha` — Docker layer cache stored in GitHub Actions Cache; unchanged layers (e.g. `go mod download`) restored in seconds on subsequent builds
+- Dual tags (`:latest` + `:<git-sha>`) — `:latest` is what the server pulls; `:<git-sha>` is immutable and allows rollback to any exact commit
+- Pre-built images pulled on the server — deploy takes ~30 seconds instead of 5+ minutes; the server never runs `docker build`
+
+### `docker-compose.prod.yml` — image references, not build directives
+
+```yaml
+api:
+  image: ghcr.io/alekkyo/payflow-api:latest   # pulled from GHCR, not built locally
+worker:
+  image: ghcr.io/alekkyo/payflow-worker:latest
+```
+
+GHCR packages are public (inherited from the public repo) so the server pulls without authentication.
 
 ---
 

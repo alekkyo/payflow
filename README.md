@@ -124,7 +124,9 @@ Before creating a Stripe PaymentIntent, the payment worker acquires a per-order 
 | AI insights | Anthropic Claude (`claude-sonnet-5`), cached in Redis |
 | Observability | OpenTelemetry traces, Prometheus metrics, Grafana dashboards |
 | Containerisation | Docker + Docker Compose |
-| Deployment | Nginx, Let's Encrypt SSL, Docker Compose |
+| CI/CD | GitHub Actions → GHCR → auto-deploy on merge to main |
+| Lint | golangci-lint v2 (`errcheck`, `staticcheck`, `ineffassign`) |
+| Deployment | Nginx, Let's Encrypt SSL, pre-built images from GHCR |
 
 ---
 
@@ -177,10 +179,15 @@ payflow/
 │   └── observability/   # slog setup, OTel tracing, Prometheus metrics
 ├── migrations/          # SQL migration files (golang-migrate)
 ├── frontend/            # React 19 app
+├── .github/
+│   └── workflows/
+│       ├── ci.yml           # Lint + test + build on every push and PR
+│       └── deploy.yml       # Build images → push GHCR → SSH deploy on main
+├── .golangci.yml            # golangci-lint v2 configuration
 ├── Dockerfile.api
 ├── Dockerfile.worker
 ├── docker-compose.yml       # Local dev (postgres, redis, grafana, jaeger)
-├── docker-compose.prod.yml  # Production (api, worker, postgres, redis)
+├── docker-compose.prod.yml  # Production (pulls pre-built images from GHCR)
 └── nginx/payflow.conf       # Nginx reverse proxy config
 ```
 
@@ -214,12 +221,33 @@ Copy `.env.example` to `.env` and set your Stripe test keys.
 
 ---
 
+## CI/CD
+
+Every push triggers the CI workflow automatically. Every merge to `main` triggers a full deploy.
+
+```
+Push to any branch
+  → CI: golangci-lint → go test -race → go build → frontend tsc + vite build
+
+Merge to main (CI passes)
+  → Deploy: build Docker images → push to GHCR → SSH to server → docker compose pull + up
+```
+
+Two workflow files in `.github/workflows/`:
+
+- **`ci.yml`** — runs on every push and PR. Go and frontend jobs run in parallel. Uses `go-version-file: go.mod` so the Go version is always in sync with the module.
+- **`deploy.yml`** — triggered by `workflow_run` on CI, so it only fires when CI passes. Uses Docker layer cache (`type=gha`) so unchanged layers (e.g. `go mod download`) are restored from cache — rebuilds take ~1 minute instead of 5+.
+
+Images are tagged with both `:latest` and `:<git-sha>` on every deploy, so any commit can be rolled back to by updating the tag.
+
+---
+
 ## Testing
 
 ```bash
 make test           # all tests
-make test-race      # with race detector
-make lint           # golangci-lint
+make test-race      # with race detector (detects concurrent memory access bugs)
+make lint           # golangci-lint v2
 ```
 
 Tests use inline mock structs implementing domain interfaces — no external mock library. Key test coverage:
