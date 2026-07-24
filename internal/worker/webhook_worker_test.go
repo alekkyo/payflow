@@ -121,7 +121,7 @@ func newTestWebhookWorker(t *testing.T, orderStore order.Store, paymentStore pay
 	t.Helper()
 	mr := miniredis.RunT(t)
 	rdb := redis.NewClient(&redis.Options{Addr: mr.Addr()})
-	t.Cleanup(func() { rdb.Close() })
+	t.Cleanup(func() { _ = rdb.Close() })
 
 	return &WebhookWorker{
 		consumer:     nil, // not used in unit tests

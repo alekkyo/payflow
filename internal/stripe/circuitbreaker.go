@@ -56,7 +56,11 @@ func (c *circuitBreakerProvider) CreatePaymentIntent(ctx context.Context, req pa
 	if err != nil {
 		return nil, fmt.Errorf("stripe circuit breaker: %w", err)
 	}
-	return result.(*payment.PaymentIntentResult), nil
+	v, ok := result.(*payment.PaymentIntentResult)
+	if !ok {
+		return nil, fmt.Errorf("stripe circuit breaker: unexpected result type")
+	}
+	return v, nil
 }
 
 func (c *circuitBreakerProvider) CreateRefund(ctx context.Context, req payment.RefundRequest) (*payment.RefundResult, error) {
@@ -66,7 +70,11 @@ func (c *circuitBreakerProvider) CreateRefund(ctx context.Context, req payment.R
 	if err != nil {
 		return nil, fmt.Errorf("stripe circuit breaker: %w", err)
 	}
-	return result.(*payment.RefundResult), nil
+	v, ok := result.(*payment.RefundResult)
+	if !ok {
+		return nil, fmt.Errorf("stripe circuit breaker: unexpected result type")
+	}
+	return v, nil
 }
 
 // ListPaymentIntents is used by the reconcile worker. It's a read-only operation
@@ -79,7 +87,11 @@ func (c *circuitBreakerProvider) ListPaymentIntents(ctx context.Context, from, t
 	if err != nil {
 		return nil, fmt.Errorf("stripe circuit breaker: %w", err)
 	}
-	return result.([]payment.PaymentIntentSummary), nil
+	v, ok := result.([]payment.PaymentIntentSummary)
+	if !ok {
+		return nil, fmt.Errorf("stripe circuit breaker: unexpected result type")
+	}
+	return v, nil
 }
 
 func (c *circuitBreakerProvider) ConstructWebhookEvent(payload []byte, signature string) (*payment.WebhookEvent, error) {

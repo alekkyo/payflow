@@ -7,8 +7,6 @@ linters:
   settings:
     errcheck:
       check-type-assertions: true
-
-issues:
   exclusions:
     rules:
       - path: "_test\\.go"

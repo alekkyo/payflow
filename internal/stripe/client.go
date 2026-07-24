@@ -81,7 +81,7 @@ func (c *Client) CreatePaymentIntent(ctx context.Context, req payment.PaymentInt
 
 // CreateRefund issues a full or partial refund against a Stripe PaymentIntent.
 func (c *Client) CreateRefund(ctx context.Context, req payment.RefundRequest) (*payment.RefundResult, error) {
-	ctx, span := otel.Tracer("payflow/stripe").Start(ctx, "stripe.CreateRefund")
+	_, span := otel.Tracer("payflow/stripe").Start(ctx, "stripe.CreateRefund")
 	defer span.End()
 	span.SetAttributes(
 		attribute.String("stripe_payment_id", req.StripePaymentID),
