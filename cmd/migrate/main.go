@@ -25,7 +25,7 @@ func main() {
 		slog.Error("creating migrator", "error", err)
 		os.Exit(1)
 	}
-	defer m.Close()
+	defer func() { _, _ = m.Close() }()
 
 	direction := "up"
 	if len(os.Args) > 1 {

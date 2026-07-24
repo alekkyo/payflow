@@ -261,7 +261,7 @@ func (h *OrderHandler) StreamEvents(w http.ResponseWriter, r *http.Request) {
 	// Subscribe to the Pub/Sub channel for this order.
 	channel := fmt.Sprintf("order:%s:events", id)
 	sub := h.rdb.Subscribe(r.Context(), channel)
-	defer sub.Close()
+	defer func() { _ = sub.Close() }()
 
 	// Send current status immediately so the client doesn't wait for the first event.
 	sendSSE(w, flusher, "status", map[string]string{
@@ -295,7 +295,7 @@ func (h *OrderHandler) StreamEvents(w http.ResponseWriter, r *http.Request) {
 
 func sendSSE(w http.ResponseWriter, flusher http.Flusher, event string, data any) {
 	b, _ := json.Marshal(data)
-	fmt.Fprintf(w, "event: %s\ndata: %s\n\n", event, b)
+	_, _ = fmt.Fprintf(w, "event: %s\ndata: %s\n\n", event, b)
 	flusher.Flush()
 }
 

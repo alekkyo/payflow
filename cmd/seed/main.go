@@ -249,11 +249,14 @@ func main() {
 		for i, s := range seeds {
 			createdAt := now.AddDate(0, 0, -s.daysAgo).Add(-time.Duration(s.hoursOffset) * time.Hour)
 
-			orderStatus := "fulfilled"
-			if s.status == "failed" {
+			var orderStatus string
+			switch s.status {
+			case "failed":
 				orderStatus = "payment_failed"
-			} else if s.status == "refunded" {
+			case "refunded":
 				orderStatus = "refunded"
+			default:
+				orderStatus = "fulfilled"
 			}
 
 			var orderID uuid.UUID

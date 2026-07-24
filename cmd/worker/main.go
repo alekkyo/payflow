@@ -52,7 +52,7 @@ func main() {
 		logger.Error("connecting to redis", "error", err)
 		os.Exit(1)
 	}
-	defer rdb.Close()
+	defer func() { _ = rdb.Close() }()
 
 	orderStore      := pgstore.NewOrderStore(pool)
 	inventoryStore  := pgstore.NewInventoryStore(pool)

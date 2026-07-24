@@ -38,7 +38,7 @@ func NewClient(apiKey, webhookSecret string) *Client {
 // create the intent (unconfirmed) and return the ClientSecret to the frontend,
 // where Stripe.js handles card collection and confirmation.
 func (c *Client) CreatePaymentIntent(ctx context.Context, req payment.PaymentIntentRequest) (*payment.PaymentIntentResult, error) {
-	ctx, span := otel.Tracer("payflow/stripe").Start(ctx, "stripe.CreatePaymentIntent")
+	_, span := otel.Tracer("payflow/stripe").Start(ctx, "stripe.CreatePaymentIntent")
 	defer span.End()
 	span.SetAttributes(
 		attribute.String("order_id", req.OrderID.String()),
