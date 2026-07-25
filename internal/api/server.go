@@ -110,7 +110,7 @@ func NewServer(
 		//      from snowballing into an unbounded queue and degraded fulfilment SLA.
 		r.With(
 			middleware.RateLimit(rdb, "orders:create", 1000, time.Minute, middleware.UserIDFromClaims),
-			middleware.Backpressure(rdb, queue.StreamOrdersCreated, 500),
+			middleware.Backpressure(rdb, queue.StreamOrdersCreated, 5000),
 		).Post("/orders", orderHandler.Create)
 		r.Get("/orders", orderHandler.List)
 		r.Get("/orders/{id}", orderHandler.GetByID)

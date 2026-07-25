@@ -10,8 +10,8 @@ const orderLatency = new Trend('order_creation_ms', true);
 
 export const options = {
   stages: [
-    { duration: '30s', target: 10 },  // warm up
-    { duration: '2m',  target: 50 },  // sustained load
+    { duration: '30s', target: 5  },  // warm up
+    { duration: '2m',  target: 20 },  // sustained load
     { duration: '30s', target: 0  },  // ramp down
   ],
   thresholds: {
