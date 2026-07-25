@@ -66,8 +66,9 @@ export default function (data) {
     headers: {
       'Content-Type':   'application/json',
       Authorization:    `Bearer ${token}`,
-      // Each VU+iteration pair produces a globally unique key.
-      'Idempotency-Key': `k6-vu${__VU}-iter${__ITER}`,
+      // RUN_ID makes keys unique across test runs so Redis idempotency
+      // cache from a previous run doesn't return stale 200s instead of 201s.
+      'Idempotency-Key': `k6-${__ENV.RUN_ID || Date.now()}-vu${__VU}-iter${__ITER}`,
     },
   });
   orderLatency.add(Date.now() - before);
