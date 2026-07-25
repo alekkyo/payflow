@@ -109,8 +109,8 @@ func NewServer(
 		//      behind, reject new orders until they catch up. This prevents a burst
 		//      from snowballing into an unbounded queue and degraded fulfilment SLA.
 		r.With(
-			middleware.RateLimit(rdb, "orders:create", 10000, time.Minute, middleware.UserIDFromClaims),
-			middleware.Backpressure(rdb, queue.StreamOrdersCreated, 5000),
+			middleware.RateLimit(rdb, "orders:create", 5, time.Minute, middleware.UserIDFromClaims),
+			middleware.Backpressure(rdb, queue.StreamOrdersCreated, 500),
 		).Post("/orders", orderHandler.Create)
 		r.Get("/orders", orderHandler.List)
 		r.Get("/orders/{id}", orderHandler.GetByID)

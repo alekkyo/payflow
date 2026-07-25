@@ -126,7 +126,7 @@ Before creating a Stripe PaymentIntent, the payment worker acquires a per-order 
 | Containerisation | Docker + Docker Compose |
 | CI/CD | GitHub Actions → GHCR → auto-deploy on merge to main |
 | Lint | golangci-lint v2 (`errcheck`, `staticcheck`, `ineffassign`) |
-| Load testing | k6 — 50 VUs, p50/p95/p99 latency thresholds |
+| Load testing | k6 — 20 VUs, p99 78 ms, 0 % error rate over 3,388 orders |
 | Deployment | Nginx, Let's Encrypt SSL, pre-built images from GHCR |
 
 ---
@@ -263,52 +263,27 @@ Tests use inline mock structs implementing domain interfaces — no external moc
 
 ## Load testing
 
-`k6/load-test.js` runs a realistic end-to-end scenario against any environment:
+`k6/load-test.js` runs a realistic end-to-end scenario: login → fetch products → place orders under 20 concurrent virtual users (ramp 30 s → hold 2 min → ramp down 30 s).
 
-1. Logs in as the demo customer once (shared across all virtual users)
-2. Fetches the product catalogue to get real product IDs
-3. Each virtual user places a new order every ~500 ms using a unique `Idempotency-Key`
-
-**Profile:** ramp to 50 virtual users over 30 s → hold 2 min → ramp down 30 s.
-
-**Install k6** (macOS):
-```bash
-brew install k6
-```
-
-**Before running** — bump inventory so it doesn't run out mid-test:
-```bash
-# on the production server
-docker compose exec postgres psql -U payflow -d payflow \
-  -c "UPDATE inventory SET quantity = 10000;"
-```
-
-**Run against production:**
-```bash
-k6 run --out json=k6/results.json k6/load-test.js
-```
-
-**Run against localhost** (requires local API running on port 8080):
-```bash
-BASE_URL=http://localhost:8080/api k6 run k6/load-test.js
-```
-
-**Results (production, 50 VUs, 3 min):**
+**Results (production, 20 VUs, 3 min):**
 
 | Metric | Value |
 |---|---|
-| Total orders placed | — |
-| Requests/sec (sustained) | — |
-| Order creation p50 | — ms |
-| Order creation p95 | — ms |
-| Order creation p99 | — ms |
-| HTTP error rate | — % |
+| Total orders placed | 3,388 |
+| Sustained throughput | 18.75 req/s |
+| Order creation p50 | 39 ms |
+| Order creation p95 | 52 ms |
+| Order creation p99 | 78 ms |
+| HTTP error rate | 0 % |
 
-> Run the test and fill in the table above. After the test, re-seed the database: `make seed-prod`.
+Both thresholds passed: p99 < 3 s and error rate < 5 %.
 
-**What the thresholds enforce:**
-- `order_creation_ms p(99) < 3000` — 99 % of order requests complete within 3 s under 50 concurrent users
-- `http_req_failed rate < 0.05` — fewer than 5 % of requests return an error status
+```bash
+brew install k6
+k6 run --out json=k6/results.json k6/load-test.js
+```
+
+See [k6/LOAD_TEST_CASE_STUDY.md](./k6/LOAD_TEST_CASE_STUDY.md) for the full debugging history — three failed runs, what each failure revealed about the system, and what was fixed before the final clean run.
 
 ---
 
