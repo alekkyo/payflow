@@ -1,6 +1,6 @@
 # PayFlow — Distributed Payment Processing Platform
 
-A production-grade e-commerce and payments backend built in Go as a capstone project for learning distributed systems and payments engineering. Built over 2 weeks by a senior engineer with no prior Go experience, transitioning from PHP/Laravel.
+A production-grade e-commerce and payments backend built in Go as a capstone project for learning distributed systems and payments engineering. Built by a senior engineer transitioning from PHP/Laravel, with no prior Go experience.
 
 **Live demo:** [payflow.alexkua.com](https://payflow.alexkua.com)
 
@@ -289,7 +289,7 @@ See [k6/LOAD_TEST_CASE_STUDY.md](./k6/LOAD_TEST_CASE_STUDY.md) for the full debu
 
 ## Background
 
-This project was built in 2 weeks as a capstone for learning Go and distributed systems. I am a senior engineer with 10+ years in PHP/Laravel, Vue.js, and React — with **zero prior Go experience** before starting this project.
+This project was built as a capstone for learning Go and distributed systems. I am a senior engineer with 10+ years in PHP/Laravel, Vue.js, and React — with **zero prior Go experience** before starting this project.
 
 Most of the implementation was done with the assistance of Claude Code (Anthropic's AI coding tool). The goal was not to write every line manually, but to learn how to work with Go idioms, understand distributed systems design decisions, and build something that would be meaningful to a payments or fintech company interviewer. Every architectural choice — saga pattern, idempotency, optimistic locking, circuit breaking, reconciliation — was studied, questioned, and understood rather than blindly generated.
 
