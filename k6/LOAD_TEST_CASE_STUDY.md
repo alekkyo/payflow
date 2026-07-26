@@ -14,6 +14,25 @@ All tests run against the live production environment (`payflow.alexkua.com`).
 
 ---
 
+## Parameter decisions
+
+**Why 50 virtual users for the first run?**
+
+50 VUs represents a moderate concurrent load target for a single-server application. The reasoning:
+
+- A payments system processing thousands of daily transactions could realistically see bursts of 50+ concurrent users during peak hours (lunch, end of day, promotional events)
+- 50 is high enough to expose concurrency issues — race conditions, connection pool exhaustion, lock contention — that would be invisible at 5 or 10 users
+- 50 is low enough that failure is informative rather than trivially expected; hammering a single server with 500 users tells you nothing useful
+- The 500 ms think time between requests per VU models a realistic user who places one order and briefly waits — not a bot firing as fast as possible
+
+The goal was not to find the absolute maximum throughput (a stress test), but to confirm the system behaves correctly and stays fast under a realistic concurrent load. 50 VUs was the starting point; the actual sustainable number was determined by what the system's safety mechanisms (rate limiter, backpressure) would allow through.
+
+**Why 500 ms think time?**
+
+A real user completing a checkout flow — selecting a product, confirming the order — takes several seconds. 500 ms is deliberately conservative (faster than a real user) to apply meaningful pressure without being a pure throughput benchmark. It also means each VU generates ~2 requests per second, giving a theoretical ceiling of ~100 RPS at 50 VUs — a load worth testing against.
+
+---
+
 ## Run 1 — First attempt, 50 VUs
 
 **Config:** 50 virtual users, rate limit 5 req/min per user, backpressure threshold 500 messages.
