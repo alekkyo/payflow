@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useCallback, type ReactNode } from 'react'
+import { createContext, useContext, useState, useCallback, useEffect, type ReactNode } from 'react'
 import { auth, type User } from '../api/client'
 
 type AuthContextValue = {
@@ -47,6 +47,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     localStorage.removeItem('token')
     localStorage.removeItem('user')
     setUser(null)
+  }, [])
+
+  useEffect(() => {
+    const handler = () => setUser(null)
+    window.addEventListener('auth:expired', handler)
+    return () => window.removeEventListener('auth:expired', handler)
   }, [])
 
   return (

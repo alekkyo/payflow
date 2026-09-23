@@ -18,9 +18,9 @@ import (
 )
 
 const (
-	inventoryWorkerGroup    = "inventory-workers"
-	orderStatusKeyTTL       = time.Hour
-	inventoryLockTTL        = 5 * time.Second
+	InventoryWorkerGroup = "inventory-workers"
+	orderStatusKeyTTL    = time.Hour
+	inventoryLockTTL     = 5 * time.Second
 )
 
 // InventoryWorker reads from stream:orders.created, reserves stock, and
@@ -52,7 +52,7 @@ func NewInventoryWorker(
 	consumer, err := queue.NewConsumer(
 		ctx, rdb,
 		queue.StreamOrdersCreated,
-		inventoryWorkerGroup,
+		InventoryWorkerGroup,
 		workerID,
 		logger,
 	)
@@ -65,7 +65,7 @@ func NewInventoryWorker(
 	compensationConsumer, err := queue.NewConsumer(
 		ctx, rdb,
 		queue.StreamPaymentsFailed,
-		inventoryWorkerGroup+"-compensation",
+		InventoryWorkerGroup+"-compensation",
 		workerID,
 		logger,
 	)

@@ -26,6 +26,7 @@ import (
 	"github.com/alexkua/payflow/internal/insights"
 	"github.com/alexkua/payflow/internal/queue"
 	redisstore "github.com/alexkua/payflow/internal/store/redis"
+	"github.com/alexkua/payflow/internal/worker"
 )
 
 // Server wraps the HTTP server and its dependencies.
@@ -110,7 +111,7 @@ func NewServer(
 		//      from snowballing into an unbounded queue and degraded fulfilment SLA.
 		r.With(
 			middleware.RateLimit(rdb, "orders:create", 5, time.Minute, middleware.UserIDFromClaims),
-			middleware.Backpressure(rdb, queue.StreamOrdersCreated, 500),
+			middleware.Backpressure(rdb, queue.StreamOrdersCreated, worker.InventoryWorkerGroup, 500),
 		).Post("/orders", orderHandler.Create)
 		r.Get("/orders", orderHandler.List)
 		r.Get("/orders/{id}", orderHandler.GetByID)
