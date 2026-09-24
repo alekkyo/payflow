@@ -31,9 +31,9 @@ func (s *ProductStore) Create(ctx context.Context, req product.CreateProductRequ
 	defer tx.Rollback(ctx) //nolint:errcheck
 
 	const insertProduct = `
-		INSERT INTO products (name, description, price_cents, currency)
-		VALUES ($1, $2, $3, $4)
-		RETURNING id, name, description, price_cents, currency, active, created_at, updated_at`
+		INSERT INTO products (name, description, price_cents, currency, image_url)
+		VALUES ($1, $2, $3, $4, $5)
+		RETURNING id, name, description, price_cents, currency, active, image_url, created_at, updated_at`
 
 	currency := req.Currency
 	if currency == "" {
@@ -41,8 +41,8 @@ func (s *ProductStore) Create(ctx context.Context, req product.CreateProductRequ
 	}
 
 	p := &product.Product{}
-	err = tx.QueryRow(ctx, insertProduct, req.Name, req.Description, req.PriceCents, currency).Scan(
-		&p.ID, &p.Name, &p.Description, &p.PriceCents, &p.Currency, &p.Active, &p.CreatedAt, &p.UpdatedAt,
+	err = tx.QueryRow(ctx, insertProduct, req.Name, req.Description, req.PriceCents, currency, req.ImageURL).Scan(
+		&p.ID, &p.Name, &p.Description, &p.PriceCents, &p.Currency, &p.Active, &p.ImageURL, &p.CreatedAt, &p.UpdatedAt,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("product_store.Create insert product: %w", err)
@@ -63,13 +63,13 @@ func (s *ProductStore) Create(ctx context.Context, req product.CreateProductRequ
 // GetByID returns a product by primary key.
 func (s *ProductStore) GetByID(ctx context.Context, id uuid.UUID) (*product.Product, error) {
 	const q = `
-		SELECT id, name, description, price_cents, currency, active, created_at, updated_at
+		SELECT id, name, description, price_cents, currency, active, image_url, created_at, updated_at
 		FROM products
 		WHERE id = $1`
 
 	p := &product.Product{}
 	err := s.pool.QueryRow(ctx, q, id).Scan(
-		&p.ID, &p.Name, &p.Description, &p.PriceCents, &p.Currency, &p.Active, &p.CreatedAt, &p.UpdatedAt,
+		&p.ID, &p.Name, &p.Description, &p.PriceCents, &p.Currency, &p.Active, &p.ImageURL, &p.CreatedAt, &p.UpdatedAt,
 	)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, fmt.Errorf("product_store.GetByID %s: %w", id, product.ErrNotFound)
@@ -89,7 +89,7 @@ func (s *ProductStore) List(ctx context.Context, page, pageSize int) ([]*product
 	}
 
 	const q = `
-		SELECT id, name, description, price_cents, currency, active, created_at, updated_at
+		SELECT id, name, description, price_cents, currency, active, image_url, created_at, updated_at
 		FROM products
 		WHERE active = true
 		ORDER BY created_at DESC
@@ -106,7 +106,7 @@ func (s *ProductStore) List(ctx context.Context, page, pageSize int) ([]*product
 	for rows.Next() {
 		p := &product.Product{}
 		if err := rows.Scan(
-			&p.ID, &p.Name, &p.Description, &p.PriceCents, &p.Currency, &p.Active, &p.CreatedAt, &p.UpdatedAt,
+			&p.ID, &p.Name, &p.Description, &p.PriceCents, &p.Currency, &p.Active, &p.ImageURL, &p.CreatedAt, &p.UpdatedAt,
 		); err != nil {
 			return nil, 0, fmt.Errorf("product_store.List scan: %w", err)
 		}
@@ -123,13 +123,13 @@ func (s *ProductStore) List(ctx context.Context, page, pageSize int) ([]*product
 func (s *ProductStore) Update(ctx context.Context, id uuid.UUID, req product.UpdateProductRequest) (*product.Product, error) {
 	const q = `
 		UPDATE products
-		SET name = $1, description = $2, price_cents = $3, active = $4, updated_at = NOW()
-		WHERE id = $5
-		RETURNING id, name, description, price_cents, currency, active, created_at, updated_at`
+		SET name = $1, description = $2, price_cents = $3, active = $4, image_url = $5, updated_at = NOW()
+		WHERE id = $6
+		RETURNING id, name, description, price_cents, currency, active, image_url, created_at, updated_at`
 
 	p := &product.Product{}
-	err := s.pool.QueryRow(ctx, q, req.Name, req.Description, req.PriceCents, req.Active, id).Scan(
-		&p.ID, &p.Name, &p.Description, &p.PriceCents, &p.Currency, &p.Active, &p.CreatedAt, &p.UpdatedAt,
+	err := s.pool.QueryRow(ctx, q, req.Name, req.Description, req.PriceCents, req.Active, req.ImageURL, id).Scan(
+		&p.ID, &p.Name, &p.Description, &p.PriceCents, &p.Currency, &p.Active, &p.ImageURL, &p.CreatedAt, &p.UpdatedAt,
 	)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, fmt.Errorf("product_store.Update %s: %w", id, product.ErrNotFound)

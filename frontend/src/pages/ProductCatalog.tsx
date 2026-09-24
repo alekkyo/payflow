@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, type JSX } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { products } from '../api/client'
 import { useCartContext } from '../context/CartContext'
@@ -7,6 +7,70 @@ const LOW_STOCK = 10
 
 function fmt(cents: number) {
   return `$${Math.round(cents / 100)}`
+}
+
+const CAT_ICONS: Record<string, JSX.Element> = {
+  Audio: (
+    <svg viewBox="0 0 48 48" width="52" height="52" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M8 28v-4a16 16 0 0 1 32 0v4" />
+      <rect x="6" y="26" width="6" height="10" rx="3" />
+      <rect x="36" y="26" width="6" height="10" rx="3" />
+    </svg>
+  ),
+  Input: (
+    <svg viewBox="0 0 48 48" width="52" height="52" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="4" y="14" width="40" height="20" rx="4" />
+      <line x1="12" y1="22" x2="12" y2="22" strokeWidth="3" strokeLinecap="round" />
+      <line x1="20" y1="22" x2="20" y2="22" strokeWidth="3" strokeLinecap="round" />
+      <line x1="28" y1="22" x2="28" y2="22" strokeWidth="3" strokeLinecap="round" />
+      <line x1="36" y1="22" x2="36" y2="22" strokeWidth="3" strokeLinecap="round" />
+      <line x1="16" y1="29" x2="32" y2="29" strokeWidth="3" strokeLinecap="round" />
+    </svg>
+  ),
+  Video: (
+    <svg viewBox="0 0 48 48" width="52" height="52" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="4" y="12" width="28" height="22" rx="4" />
+      <path d="M32 18l12-6v24l-12-6V18z" />
+      <circle cx="18" cy="23" r="5" />
+    </svg>
+  ),
+  Cables: (
+    <svg viewBox="0 0 48 48" width="52" height="52" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="6" y="10" width="14" height="20" rx="3" />
+      <line x1="10" y1="10" x2="10" y2="6" />
+      <line x1="16" y1="10" x2="16" y2="6" />
+      <path d="M13 30v4a14 14 0 0 0 14 14" strokeDasharray="3 2" />
+      <rect x="30" y="28" width="12" height="10" rx="3" />
+      <line x1="36" y1="28" x2="36" y2="22" />
+      <circle cx="36" cy="20" r="3" />
+    </svg>
+  ),
+  Desk: (
+    <svg viewBox="0 0 48 48" width="52" height="52" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="6" y="8" width="36" height="24" rx="3" />
+      <line x1="24" y1="32" x2="24" y2="40" />
+      <line x1="14" y1="40" x2="34" y2="40" />
+      <circle cx="24" cy="20" r="1.5" fill="currentColor" />
+    </svg>
+  ),
+  Electronics: (
+    <svg viewBox="0 0 48 48" width="52" height="52" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="12" y="12" width="24" height="24" rx="3" />
+      <line x1="18" y1="12" x2="18" y2="8" />
+      <line x1="24" y1="12" x2="24" y2="8" />
+      <line x1="30" y1="12" x2="30" y2="8" />
+      <line x1="18" y1="36" x2="18" y2="40" />
+      <line x1="24" y1="36" x2="24" y2="40" />
+      <line x1="30" y1="36" x2="30" y2="40" />
+      <line x1="12" y1="18" x2="8" y2="18" />
+      <line x1="12" y1="24" x2="8" y2="24" />
+      <line x1="12" y1="30" x2="8" y2="30" />
+      <line x1="36" y1="18" x2="40" y2="18" />
+      <line x1="36" y1="24" x2="40" y2="24" />
+      <line x1="36" y1="30" x2="40" y2="30" />
+      <rect x="19" y="19" width="10" height="10" rx="1" />
+    </svg>
+  ),
 }
 
 function categoryOf(name: string): string {
@@ -241,12 +305,24 @@ export function ProductCatalog() {
                       Sold out
                     </span>
                   )}
-                  <span
-                    className="text-[10px] uppercase tracking-[0.14em]"
-                    style={{ fontFamily: 'ui-monospace, monospace', color: 'rgba(32,30,29,.34)' }}
-                  >
-                    product shot
-                  </span>
+                  {product.image_url ? (
+                    <img
+                      src={product.image_url}
+                      alt={product.name}
+                      style={{
+                        width: '100%',
+                        height: '100%',
+                        objectFit: 'cover',
+                        position: 'absolute',
+                        inset: 0,
+                        borderRadius: '28px 28px 0 0',
+                      }}
+                    />
+                  ) : (
+                    <span style={{ color: 'rgba(32,30,29,.22)' }}>
+                      {CAT_ICONS[cat] ?? CAT_ICONS.Electronics}
+                    </span>
+                  )}
                 </div>
 
                 {/* Body */}

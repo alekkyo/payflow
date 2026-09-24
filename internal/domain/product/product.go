@@ -18,6 +18,7 @@ type Product struct {
 	PriceCents  int       `json:"price_cents"`
 	Currency    string    `json:"currency"`
 	Active      bool      `json:"active"`
+	ImageURL    *string   `json:"image_url,omitempty"`
 	CreatedAt   time.Time `json:"created_at"`
 	UpdatedAt   time.Time `json:"updated_at"`
 }
@@ -38,18 +39,20 @@ func (i *Inventory) Available() int {
 
 // CreateProductRequest carries the fields required to create a new product.
 type CreateProductRequest struct {
-	Name        string `json:"name"`
-	Description string `json:"description"`
-	PriceCents  int    `json:"price_cents"`
-	Currency    string `json:"currency"`
+	Name        string  `json:"name"`
+	Description string  `json:"description"`
+	PriceCents  int     `json:"price_cents"`
+	Currency    string  `json:"currency"`
+	ImageURL    *string `json:"image_url,omitempty"`
 }
 
 // UpdateProductRequest carries the fields that can be changed on an existing product.
 type UpdateProductRequest struct {
-	Name        string `json:"name"`
-	Description string `json:"description"`
-	PriceCents  int    `json:"price_cents"`
-	Active      bool   `json:"active"`
+	Name        string  `json:"name"`
+	Description string  `json:"description"`
+	PriceCents  int     `json:"price_cents"`
+	Active      bool    `json:"active"`
+	ImageURL    *string `json:"image_url,omitempty"`
 }
 
 // Store is the persistence interface for products.

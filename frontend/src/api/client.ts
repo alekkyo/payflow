@@ -69,6 +69,7 @@ export type Product = {
   price_cents: number
   currency: string
   active: boolean
+  image_url?: string
 }
 
 export type InventoryLevel = {
