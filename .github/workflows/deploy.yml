@@ -83,10 +83,11 @@ jobs:
           cache-to: type=gha,mode=max,scope=worker
 
       # SSH into the production server and:
-      # 1. git pull   — picks up any changes to compose files, nginx config, etc.
-      # 2. docker compose pull — downloads the new :latest images from GHCR
-      # 3. docker compose up -d — restarts only api and worker with zero postgres/redis downtime
-      # 4. docker image prune — removes old image layers to free disk space
+      # 1. git pull        — picks up any changes to compose files, nginx config, etc.
+      # 2. npm ci + build  — rebuilds the React frontend into frontend/dist
+      # 3. docker compose pull — downloads the new :latest images from GHCR
+      # 4. docker compose up -d — restarts only api and worker with zero postgres/redis downtime
+      # 5. docker image prune — removes old image layers to free disk space
       #
       # Secrets needed (add in GitHub → Settings → Secrets → Actions):
       #   DEPLOY_HOST  — server IP or hostname
@@ -101,6 +102,7 @@ jobs:
           script: |
             cd /var/www/payflow
             git pull --ff-only
+            cd frontend && npm ci && npm run build && cd ..
             docker compose -f docker-compose.prod.yml pull api worker
             docker compose -f docker-compose.prod.yml up -d api worker
             docker image prune -f
